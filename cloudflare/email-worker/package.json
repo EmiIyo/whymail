@@ -1,0 +1,17 @@
+{
+  "name": "whymail-email-worker",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "deploy": "wrangler deploy",
+    "dev": "wrangler dev"
+  },
+  "dependencies": {
+    "postal-mime": "^2.2.7"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^4.20250101.0",
+    "typescript": "^5.5.3",
+    "wrangler": "^3.99.0"
+  }
+}

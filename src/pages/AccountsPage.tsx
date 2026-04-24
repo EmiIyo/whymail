@@ -1,27 +1,16 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Plus, Mail, Trash2, ToggleLeft, ToggleRight, Server } from 'lucide-react';
+import { Plus, Mail, Trash2, ToggleLeft, ToggleRight, Globe } from 'lucide-react';
 import { accountsApi, domainsApi } from '@/api/index';
 import { useAuth } from '@/hooks/useAuth';
 
 interface NewAccountForm {
-  email: string;
+  localPart: string;
   displayName: string;
   domainId: string;
-  imapHost: string;
-  imapPort: string;
-  smtpHost: string;
-  smtpPort: string;
-  username: string;
-  password: string;
 }
 
-const EMPTY_FORM: NewAccountForm = {
-  email: '', displayName: '', domainId: '',
-  imapHost: '', imapPort: '993',
-  smtpHost: '', smtpPort: '587',
-  username: '', password: '',
-};
+const EMPTY_FORM: NewAccountForm = { localPart: '', displayName: '', domainId: '' };
 
 export default function AccountsPage() {
   const { user } = useAuth();
@@ -41,19 +30,20 @@ export default function AccountsPage() {
     enabled: !!user,
   });
 
+  const selectedDomain = domains.find((d) => d.id === form.domainId);
+
   const addMutation = useMutation({
-    mutationFn: () => accountsApi.create({
-      userId: user!.id,
-      domainId: form.domainId || undefined,
-      email: form.email,
-      displayName: form.displayName,
-      imapHost: form.imapHost,
-      imapPort: parseInt(form.imapPort) || 993,
-      smtpHost: form.smtpHost,
-      smtpPort: parseInt(form.smtpPort) || 587,
-      username: form.username,
-      password: form.password,
-    }),
+    mutationFn: () => {
+      if (!form.domainId || !selectedDomain) throw new Error('Please pick a domain');
+      if (!form.localPart.trim()) throw new Error('Enter a mailbox name (the part before @)');
+      const email = `${form.localPart.trim().toLowerCase()}@${selectedDomain.name}`;
+      return accountsApi.create({
+        userId: user!.id,
+        email,
+        displayName: form.displayName,
+        domainId: form.domainId,
+      });
+    },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['accounts'] });
       setForm(EMPTY_FORM);
@@ -71,83 +61,97 @@ export default function AccountsPage() {
     onSuccess: () => qc.invalidateQueries({ queryKey: ['accounts'] }),
   });
 
-  const setField = (k: keyof NewAccountForm, v: string) => setForm(f => ({ ...f, [k]: v }));
+  const setField = (k: keyof NewAccountForm, v: string) => setForm((f) => ({ ...f, [k]: v }));
+  const hasDomains = domains.length > 0;
 
   return (
     <div className="flex-1 flex flex-col min-h-0 bg-white">
-      {/* Header */}
       <div className="flex items-center justify-between px-6 py-4 border-b border-black/10">
         <div>
-          <h1 className="text-base font-semibold text-black">Email Accounts</h1>
-          <p className="text-xs text-black/40 mt-0.5">Manage IMAP/SMTP accounts for sending and receiving</p>
+          <h1 className="text-base font-semibold text-black">Mailboxes</h1>
+          <p className="text-xs text-black/40 mt-0.5">Create addresses on your own domains</p>
         </div>
         <button
           onClick={() => setShowAdd(true)}
-          className="flex items-center gap-2 bg-black text-white text-xs font-medium px-3 py-2 rounded-lg hover:bg-black/80 transition-colors"
+          disabled={!hasDomains}
+          className="flex items-center gap-2 bg-black text-white text-xs font-medium px-3 py-2 rounded-lg hover:bg-black/80 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
         >
-          <Plus size={14} /> Add Account
+          <Plus size={14} /> New Mailbox
         </button>
       </div>
 
-      {/* Add form */}
-      {showAdd && (
+      {!hasDomains && (
+        <div className="mx-6 mt-4 p-4 border border-black/10 rounded-xl bg-black/[0.02] text-xs text-black/60">
+          Add a verified domain first on the <span className="font-semibold">Domains</span> page. A mailbox always belongs to one of your domains.
+        </div>
+      )}
+
+      {showAdd && hasDomains && (
         <div className="mx-6 mt-4 p-4 border border-black/10 rounded-xl bg-black/[0.02] space-y-3">
-          <p className="text-xs font-semibold text-black">New Email Account</p>
-          <div className="grid grid-cols-2 gap-3">
-            {([
-              ['email', 'Email address', 'you@yourdomain.com'],
-              ['displayName', 'Display name', 'Your Name'],
-              ['imapHost', 'IMAP host', 'mail.yourdomain.com'],
-              ['imapPort', 'IMAP port', '993'],
-              ['smtpHost', 'SMTP host', 'mail.yourdomain.com'],
-              ['smtpPort', 'SMTP port', '587'],
-              ['username', 'Username', 'you@yourdomain.com'],
-              ['password', 'Password', '••••••••'],
-            ] as [keyof NewAccountForm, string, string][]).map(([key, label, placeholder]) => (
-              <div key={key}>
-                <label className="text-[10px] font-medium text-black/50 uppercase tracking-wide mb-1 block">{label}</label>
+          <p className="text-xs font-semibold text-black">New mailbox</p>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <div>
+              <label className="text-[10px] font-medium text-black/50 uppercase tracking-wide mb-1 block">Domain</label>
+              <select
+                value={form.domainId}
+                onChange={(e) => setField('domainId', e.target.value)}
+                className="w-full text-sm border border-black/20 rounded-lg px-3 py-2 outline-none focus:border-black bg-white"
+              >
+                <option value="">— pick a domain —</option>
+                {domains.map((d) => (
+                  <option key={d.id} value={d.id}>
+                    {d.name}{d.verified ? '' : ' (unverified)'}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="text-[10px] font-medium text-black/50 uppercase tracking-wide mb-1 block">Address</label>
+              <div className="flex items-center border border-black/20 rounded-lg overflow-hidden focus-within:border-black">
                 <input
-                  type={key === 'password' ? 'password' : 'text'}
-                  value={form[key]}
-                  onChange={e => setField(key, e.target.value)}
-                  placeholder={placeholder}
-                  className="w-full text-sm border border-black/20 rounded-lg px-3 py-2 outline-none focus:border-black bg-white"
+                  type="text"
+                  value={form.localPart}
+                  onChange={(e) => setField('localPart', e.target.value)}
+                  placeholder="admin"
+                  className="flex-1 text-sm px-3 py-2 outline-none bg-white"
                 />
+                <span className="text-sm text-black/50 pr-3 select-none">
+                  @{selectedDomain?.name ?? 'domain'}
+                </span>
               </div>
-            ))}
-            {domains.length > 0 && (
-              <div className="col-span-2">
-                <label className="text-[10px] font-medium text-black/50 uppercase tracking-wide mb-1 block">Link to Domain (optional)</label>
-                <select
-                  value={form.domainId}
-                  onChange={e => setField('domainId', e.target.value)}
-                  className="w-full text-sm border border-black/20 rounded-lg px-3 py-2 outline-none focus:border-black bg-white"
-                >
-                  <option value="">— none —</option>
-                  {domains.map(d => (
-                    <option key={d.id} value={d.id}>{d.name}</option>
-                  ))}
-                </select>
-              </div>
-            )}
+            </div>
+            <div className="md:col-span-2">
+              <label className="text-[10px] font-medium text-black/50 uppercase tracking-wide mb-1 block">Display name (optional)</label>
+              <input
+                type="text"
+                value={form.displayName}
+                onChange={(e) => setField('displayName', e.target.value)}
+                placeholder="Emrecan"
+                className="w-full text-sm border border-black/20 rounded-lg px-3 py-2 outline-none focus:border-black bg-white"
+              />
+            </div>
           </div>
           <div className="flex gap-2 pt-1">
             <button
               onClick={() => addMutation.mutate()}
-              disabled={!form.email || addMutation.isPending}
+              disabled={addMutation.isPending || !form.domainId || !form.localPart.trim()}
               className="bg-black text-white text-xs px-4 py-2 rounded-lg hover:bg-black/80 disabled:opacity-50 transition-colors"
             >
-              {addMutation.isPending ? 'Adding…' : 'Add Account'}
+              {addMutation.isPending ? 'Creating…' : 'Create mailbox'}
             </button>
-            <button onClick={() => { setShowAdd(false); setForm(EMPTY_FORM); }} className="text-xs text-black/40 px-2 hover:text-black">Cancel</button>
+            <button
+              onClick={() => { setShowAdd(false); setForm(EMPTY_FORM); }}
+              className="text-xs text-black/40 px-2 hover:text-black"
+            >
+              Cancel
+            </button>
           </div>
           {addMutation.isError && (
-            <p className="text-xs text-black/50">Error: {(addMutation.error as Error).message}</p>
+            <p className="text-xs text-red-600">Error: {(addMutation.error as Error).message}</p>
           )}
         </div>
       )}
 
-      {/* Account list */}
       <div className="flex-1 overflow-y-auto px-6 py-4 space-y-3">
         {isLoading && (
           <div className="flex items-center justify-center py-16">
@@ -157,11 +161,13 @@ export default function AccountsPage() {
         {!isLoading && accounts.length === 0 && !showAdd && (
           <div className="flex flex-col items-center justify-center py-20 text-center">
             <Mail size={32} className="text-black/20 mb-3" />
-            <p className="text-sm font-medium text-black/40">No accounts yet</p>
-            <p className="text-xs text-black/30 mt-1">Add an email account to start syncing mail</p>
+            <p className="text-sm font-medium text-black/40">No mailboxes yet</p>
+            <p className="text-xs text-black/30 mt-1">
+              {hasDomains ? 'Create your first mailbox to start sending and receiving.' : 'Add a domain on the Domains page first.'}
+            </p>
           </div>
         )}
-        {accounts.map(acc => (
+        {accounts.map((acc) => (
           <div key={acc.id} className="flex items-center gap-3 border border-black/10 rounded-xl px-4 py-3">
             <div className="w-9 h-9 rounded-full bg-black flex items-center justify-center shrink-0">
               <span className="text-white text-xs font-semibold">{acc.email[0].toUpperCase()}</span>
@@ -174,14 +180,16 @@ export default function AccountsPage() {
                 )}
               </div>
               <div className="flex items-center gap-3 mt-0.5">
-                {acc.imapHost && (
-                  <span className="flex items-center gap-1 text-xs text-black/30">
-                    <Server size={10} />{acc.imapHost}
-                  </span>
+                {acc.name && acc.name !== acc.email && (
+                  <span className="text-xs text-black/40">{acc.name}</span>
                 )}
-                {acc.lastSyncedAt && (
+                <span className="flex items-center gap-1 text-xs text-black/30">
+                  <Globe size={10} />
+                  {acc.email.split('@')[1]}
+                </span>
+                {acc.lastActivityAt && (
                   <span className="text-xs text-black/30">
-                    Synced {new Date(acc.lastSyncedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                    Last activity {new Date(acc.lastActivityAt).toLocaleString()}
                   </span>
                 )}
               </div>
@@ -190,12 +198,14 @@ export default function AccountsPage() {
               <button
                 onClick={() => toggleMutation.mutate({ id: acc.id, enabled: !acc.enabled })}
                 className="text-black/40 hover:text-black transition-colors"
+                title={acc.enabled ? 'Disable (stop receiving)' : 'Enable'}
               >
                 {acc.enabled ? <ToggleRight size={20} /> : <ToggleLeft size={20} />}
               </button>
               <button
                 onClick={() => deleteMutation.mutate(acc.id)}
-                className="p-1.5 text-black/30 hover:text-black rounded transition-colors"
+                className="p-1.5 text-black/30 hover:text-red-600 rounded transition-colors"
+                title="Delete mailbox"
               >
                 <Trash2 size={14} />
               </button>

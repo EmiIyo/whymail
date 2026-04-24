@@ -1,0 +1,11 @@
+name = "whymail-email-worker"
+main = "src/worker.ts"
+compatibility_date = "2025-01-01"
+compatibility_flags = ["nodejs_compat"]
+
+# WEBHOOK_SECRET must be set as a Worker secret, not a plain var, via:
+#   wrangler secret put WEBHOOK_SECRET
+# (paste the value when prompted).
+[vars]
+WEBHOOK_URL = "https://mufffhziogmthccbpwww.supabase.co/functions/v1/receive-email"
+MAX_RAW_BYTES = "26214400"

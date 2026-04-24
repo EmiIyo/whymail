@@ -1,6 +1,7 @@
 import { motion } from 'framer-motion';
 import { Star, Paperclip } from 'lucide-react';
 import { useEmailStore } from '@/hooks/useEmailStore';
+import { useEmailMutations } from '@/hooks/useEmailMutations';
 import { formatEmailDate, getInitials } from '@/lib/index';
 import type { Email } from '@/lib/index';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
@@ -14,12 +15,13 @@ interface EmailListProps {
 }
 
 export function EmailList({ emails, title, emptyMessage = 'No emails here.', onSelect }: EmailListProps) {
-  const { selectedEmailId, setSelectedEmail, markRead, toggleStar } = useEmailStore();
+  const { selectedEmailId, setSelectedEmail } = useEmailStore();
+  const { markRead, toggleStar } = useEmailMutations();
 
   const handleSelect = (email: Email) => {
     if (onSelect) { onSelect(email); return; }
     setSelectedEmail(email.id);
-    if (!email.read) markRead(email.id);
+    if (!email.read) void markRead(email.id);
   };
 
   return (
@@ -78,7 +80,7 @@ export function EmailList({ emails, title, emptyMessage = 'No emails here.', onS
 
               {/* Star */}
               <button
-                onClick={e => { e.stopPropagation(); toggleStar(email.id); }}
+                onClick={e => { e.stopPropagation(); void toggleStar(email.id, email.starred); }}
                 className="shrink-0 mt-0.5 p-0.5 rounded hover:text-foreground transition-colors"
               >
                 <Star className={`w-3.5 h-3.5 ${email.starred ? 'fill-foreground text-foreground' : 'text-muted-foreground/30'}`} />

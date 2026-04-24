@@ -1,17 +1,20 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Plus, Globe, CheckCircle, XCircle, Clock, Trash2, Copy, ChevronDown, ChevronUp } from 'lucide-react';
-import { domainsApi } from '@/api/index';
+import { domainsApi, type DomainCheckResult, type DomainVerifyResponse } from '@/api/index';
 import { useAuth } from '@/hooks/useAuth';
+import { useToast } from '@/hooks/use-toast';
 import type { Domain } from '@/lib/index';
 
 export default function DomainsPage() {
   const { user } = useAuth();
   const qc = useQueryClient();
+  const { toast } = useToast();
   const [showAdd, setShowAdd] = useState(false);
   const [newDomain, setNewDomain] = useState('');
   const [expanded, setExpanded] = useState<string | null>(null);
   const [copied, setCopied] = useState('');
+  const [verifyResults, setVerifyResults] = useState<Record<string, DomainCheckResult[]>>({});
 
   const { data: domains = [], isLoading } = useQuery({
     queryKey: ['domains', user?.id],
@@ -31,7 +34,20 @@ export default function DomainsPage() {
 
   const verifyMutation = useMutation({
     mutationFn: (id: string) => domainsApi.verify(id),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['domains'] }),
+    onSuccess: (res: DomainVerifyResponse, id: string) => {
+      setVerifyResults((p) => ({ ...p, [id]: res.checks }));
+      setExpanded(id);
+      qc.invalidateQueries({ queryKey: ['domains'] });
+      toast({
+        title: res.verified ? 'Domain verified' : 'Verification incomplete',
+        description: res.verified
+          ? 'All DNS records look good.'
+          : `${res.checks.filter((c) => !c.pass).length} of ${res.checks.length} records still need attention.`,
+      });
+    },
+    onError: (err: Error) => {
+      toast({ title: 'Verify failed', description: err.message, variant: 'destructive' });
+    },
   });
 
   const copyText = (text: string, key: string) => {
@@ -47,9 +63,12 @@ export default function DomainsPage() {
   };
 
   const dnsRecords = (d: Domain) => [
-    { type: 'MX', name: `@`, value: d.mxRecord || `mail.${d.name}`, ttl: '3600' },
-    { type: 'TXT', name: `@`, value: d.spfRecord || `v=spf1 include:${d.name} ~all`, ttl: '3600' },
-    { type: 'TXT', name: `_dmarc`, value: d.dmarcRecord || `v=DMARC1; p=none; rua=mailto:postmaster@${d.name}`, ttl: '3600' },
+    { type: 'MX',   name: '@',                  value: '10 route1.mx.cloudflare.net',                                    note: 'Inbound via Cloudflare Email Routing' },
+    { type: 'MX',   name: '@',                  value: '10 route2.mx.cloudflare.net',                                    note: 'Inbound via Cloudflare Email Routing' },
+    { type: 'MX',   name: '@',                  value: '10 route3.mx.cloudflare.net',                                    note: 'Inbound via Cloudflare Email Routing' },
+    { type: 'TXT',  name: '@',                  value: 'v=spf1 include:amazonses.com ~all',                              note: 'Outbound SPF (Resend uses AWS SES under the hood)' },
+    { type: 'CNAME',name: `resend._domainkey`,  value: 'resend.com',                                                     note: 'DKIM for outbound (Resend will show the exact target when you verify the domain on resend.com)' },
+    { type: 'TXT',  name: '_dmarc',             value: `v=DMARC1; p=none; rua=mailto:dmarc@${d.name}`,                   note: 'Optional but recommended' },
   ];
 
   return (
@@ -152,23 +171,51 @@ export default function DomainsPage() {
 
             {/* DNS records */}
             {expanded === domain.id && (
-              <div className="border-t border-black/5 px-4 py-3 bg-black/[0.02]">
-                <p className="text-xs font-medium text-black/60 mb-2">DNS Records — Add these to your domain provider</p>
-                <div className="space-y-2">
-                  {dnsRecords(domain).map((rec, i) => (
-                    <div key={i} className="flex items-start gap-2 text-xs font-mono bg-white border border-black/10 rounded-lg px-3 py-2">
-                      <span className="text-black/40 w-8 shrink-0">{rec.type}</span>
-                      <span className="text-black/50 w-16 shrink-0 truncate">{rec.name}</span>
-                      <span className="flex-1 text-black/80 break-all">{rec.value}</span>
-                      <button
-                        onClick={() => copyText(rec.value, `${domain.id}-${i}`)}
-                        className="text-black/30 hover:text-black ml-1 shrink-0 transition-colors"
-                      >
-                        {copied === `${domain.id}-${i}` ? <CheckCircle size={12} /> : <Copy size={12} />}
-                      </button>
-                    </div>
-                  ))}
+              <div className="border-t border-black/5 px-4 py-3 bg-black/[0.02] space-y-4">
+                <div>
+                  <p className="text-xs font-medium text-black/60 mb-2">DNS Records — Add these in your Cloudflare DNS dashboard</p>
+                  <div className="space-y-2">
+                    {dnsRecords(domain).map((rec, i) => (
+                      <div key={i} className="bg-white border border-black/10 rounded-lg px-3 py-2">
+                        <div className="flex items-start gap-2 text-xs font-mono">
+                          <span className="text-black/40 w-14 shrink-0">{rec.type}</span>
+                          <span className="text-black/50 w-32 shrink-0 truncate">{rec.name}</span>
+                          <span className="flex-1 text-black/80 break-all">{rec.value}</span>
+                          <button
+                            onClick={() => copyText(rec.value, `${domain.id}-${i}`)}
+                            className="text-black/30 hover:text-black ml-1 shrink-0 transition-colors"
+                          >
+                            {copied === `${domain.id}-${i}` ? <CheckCircle size={12} /> : <Copy size={12} />}
+                          </button>
+                        </div>
+                        {rec.note && (
+                          <p className="text-[10px] text-black/40 mt-1 pl-16">{rec.note}</p>
+                        )}
+                      </div>
+                    ))}
+                  </div>
                 </div>
+
+                {verifyResults[domain.id] && (
+                  <div>
+                    <p className="text-xs font-medium text-black/60 mb-2">Last verification result</p>
+                    <div className="space-y-1.5">
+                      {verifyResults[domain.id].map((c) => (
+                        <div key={c.name} className="flex items-start gap-2 text-xs bg-white border border-black/10 rounded-lg px-3 py-2">
+                          {c.pass
+                            ? <CheckCircle size={12} className="text-emerald-600 mt-0.5 shrink-0" />
+                            : <XCircle size={12} className="text-red-500 mt-0.5 shrink-0" />}
+                          <div className="flex-1 min-w-0">
+                            <p className="font-medium text-black/80 uppercase tracking-wide text-[10px]">{c.name}</p>
+                            {c.message && <p className="text-black/60 mt-0.5">{c.message}</p>}
+                            {c.observed && <p className="text-black/40 mt-0.5 font-mono break-all">Observed: {c.observed}</p>}
+                            {!c.pass && <p className="text-black/40 mt-0.5 font-mono break-all">Expected: {c.expected}</p>}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
             )}
           </div>

@@ -1,7 +1,6 @@
-import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { emailsApi, accountsApi } from '@/api/index';
-import { useAuth } from '@/hooks/useAuth';
+import { emailsApi } from '@/api/index';
+import { useAccounts } from '@/hooks/useAccounts';
 import { useEmailStore } from '@/hooks/useEmailStore';
 import { EmailList } from '@/components/EmailList';
 import { EmailView } from '@/components/EmailView';
@@ -14,17 +13,8 @@ interface FolderPageProps {
 }
 
 export function FolderPage({ folder, title, emptyMessage }: FolderPageProps) {
-  const { user } = useAuth();
-  const { selectedEmailId, emails: storeEmails } = useEmailStore();
-
-  // Get accounts to pick the active one
-  const { data: accounts = [] } = useQuery({
-    queryKey: ['accounts'],
-    queryFn: () => accountsApi.list(),
-    enabled: !!user,
-  });
-
-  const activeAccountId = accounts[0]?.id ?? '';
+  const { selectedEmailId } = useEmailStore();
+  const { activeAccountId } = useAccounts();
 
   const { data: folderEmails = [], isLoading } = useQuery({
     queryKey: ['emails', activeAccountId, folder],
@@ -33,8 +23,7 @@ export function FolderPage({ folder, title, emptyMessage }: FolderPageProps) {
     refetchInterval: 60_000,
   });
 
-  const selectedEmail = folderEmails.find(e => e.id === selectedEmailId)
-    ?? storeEmails.find(e => e.id === selectedEmailId);
+  const selectedEmail = folderEmails.find(e => e.id === selectedEmailId);
   const showView = !!selectedEmail;
 
   return (

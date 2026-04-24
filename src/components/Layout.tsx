@@ -3,8 +3,8 @@ import { NavLink, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Inbox, Send, FileText, AlertTriangle, Trash2, Search,
-  Globe, Users, Settings, PenSquare, RefreshCw, ChevronDown,
-  Menu, X, Mail, LogOut, Star, Bell, MailsIcon
+  Globe, Users, Settings, PenSquare, ChevronDown,
+  Menu, X, LogOut, Bell, MailsIcon
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
@@ -17,7 +17,8 @@ import {
   DropdownMenuTrigger
 } from '@/components/ui/dropdown-menu';
 import { useEmailStore } from '@/hooks/useEmailStore';
-import { useEmailActions } from '@/hooks/useEmailActions';
+import { useAccounts } from '@/hooks/useAccounts';
+import { useUnreadCounts } from '@/hooks/useUnreadCounts';
 import { ROUTE_PATHS, getInitials } from '@/lib/index';
 import { useAuth } from '@/hooks/useAuth';
 import { ComposeModal } from '@/components/ComposeModal';
@@ -48,9 +49,10 @@ interface LayoutProps {
 
 export function Layout({ children }: LayoutProps) {
   const navigate = useNavigate();
-  const { composeOpen, closeCompose, composeDraft, openCompose, getUnreadCount,
-    accounts, activeAccountId, setActiveAccount, sidebarOpen, setSidebarOpen, emails } = useEmailStore();
-  const { syncEmails, syncing } = useEmailActions();
+  const { composeOpen, closeCompose, composeDraft, openCompose,
+    setActiveAccount, sidebarOpen, setSidebarOpen } = useEmailStore();
+  const { accounts, activeAccountId } = useAccounts();
+  const unreadCounts = useUnreadCounts(activeAccountId || null);
   const { signOut } = useAuth();
   const [searchInput, setSearchInput] = useState('');
 
@@ -178,7 +180,7 @@ export function Layout({ children }: LayoutProps) {
           <div className="mb-1">
             <p className="px-3 py-1 text-xs font-semibold uppercase tracking-widest text-sidebar-foreground/40">Mail</p>
             {folderNav.map(({ label, icon: Icon, path, folder }) => {
-              const unread = folder ? getUnreadCount(folder) : emails.filter(e => e.folder === 'inbox' && !e.read).length;
+              const unread = folder ? unreadCounts[folder] : unreadCounts.inbox;
               return (
                 <NavLink
                   key={path}
@@ -256,19 +258,6 @@ export function Layout({ children }: LayoutProps) {
           </button>
 
           <div className="flex-1" />
-
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <button
-                onClick={syncEmails}
-                disabled={syncing}
-                className="p-1.5 rounded-md hover:bg-muted transition-colors disabled:opacity-50"
-              >
-                <RefreshCw className={`w-4 h-4 text-muted-foreground ${syncing ? 'animate-spin' : ''}`} />
-              </button>
-            </TooltipTrigger>
-            <TooltipContent>Sync emails</TooltipContent>
-          </Tooltip>
 
           <Tooltip>
             <TooltipTrigger asChild>

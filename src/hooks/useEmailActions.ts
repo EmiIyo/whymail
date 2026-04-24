@@ -1,72 +1,77 @@
 import { useState, useCallback } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { useEmailStore } from '@/hooks/useEmailStore';
-import { mailApi } from '@/api/index';
+import { useAuth } from '@/hooks/useAuth';
+import { mailApi, emailsApi } from '@/api/index';
 import type { Email, ComposeData } from '@/lib/index';
 
-interface SendEmailResult { success: boolean; error?: string; }
+interface SendEmailResult {
+  success: boolean;
+  error?: string;
+  messageId?: string;
+  emailId?: string;
+}
 
 export function useEmailActions() {
-  const { addEmail, activeAccountId, accounts, openCompose } = useEmailStore();
+  const { user } = useAuth();
+  const qc = useQueryClient();
+  const { activeAccountId, openCompose } = useEmailStore();
   const [sending, setSending] = useState(false);
-  const [syncing, setSyncing] = useState(false);
+  const [savingDraft, setSavingDraft] = useState(false);
+
+  const invalidate = useCallback(() => {
+    qc.invalidateQueries({ queryKey: ['emails'] });
+    qc.invalidateQueries({ queryKey: ['all-inbox'] });
+    qc.invalidateQueries({ queryKey: ['unread-counts'] });
+  }, [qc]);
 
   const sendEmail = useCallback(async (data: ComposeData): Promise<SendEmailResult> => {
+    if (!user) return { success: false, error: 'Not signed in' };
+    if (!activeAccountId) return { success: false, error: 'No active mailbox. Create one on the Accounts page.' };
     setSending(true);
     try {
-      const account = accounts.find(a => a.id === activeAccountId);
-      if (!account) throw new Error('No active account');
-
-      // Use real API if connected to Supabase (not mock account)
-      if (activeAccountId !== 'acc1') {
-        const result = await mailApi.send({
-          accountId: activeAccountId,
-          to: data.to,
-          cc: data.cc,
-          bcc: data.bcc,
-          subject: data.subject,
-          body: data.body,
-        });
-        return result;
-      }
-
-      // Fallback: mock for demo accounts
-      await new Promise(r => setTimeout(r, 1200));
-      const sentEmail: Email = {
-        id: `sent-${Date.now()}`,
+      const result = await mailApi.send({
+        userId: user.id,
         accountId: activeAccountId,
-        folder: 'sent',
-        from: account.email,
-        fromName: account.name,
-        to: data.to.split(',').map(s => s.trim()).filter(Boolean),
-        cc: data.cc ? data.cc.split(',').map(s => s.trim()).filter(Boolean) : undefined,
-        subject: data.subject || '(no subject)',
-        bodyText: data.body,
-        read: true,
-        starred: false,
-        date: new Date().toISOString(),
-        attachments: [],
-      };
-      addEmail(sentEmail);
-      return { success: true };
-    } catch (err) {
-      return { success: false, error: err instanceof Error ? err.message : 'Send failed' };
+        to: data.to,
+        cc: data.cc,
+        bcc: data.bcc,
+        subject: data.subject,
+        body: data.body,
+        attachments: data.attachments,
+      });
+      if (result.success) invalidate();
+      return result;
     } finally {
       setSending(false);
     }
-  }, [accounts, activeAccountId, addEmail]);
+  }, [user, activeAccountId, invalidate]);
 
-  const syncEmails = useCallback(async () => {
-    setSyncing(true);
+  const saveDraft = useCallback(async (data: ComposeData): Promise<SendEmailResult> => {
+    if (!user) return { success: false, error: 'Not signed in' };
+    if (!activeAccountId) return { success: false, error: 'No active mailbox' };
+    setSavingDraft(true);
     try {
-      if (activeAccountId !== 'acc1') {
-        await mailApi.sync(activeAccountId);
-      } else {
-        await new Promise(r => setTimeout(r, 1500));
-      }
+      const toList = data.to.split(',').map((s) => s.trim()).filter(Boolean);
+      const ccList = data.cc.split(',').map((s) => s.trim()).filter(Boolean);
+      const bccList = data.bcc.split(',').map((s) => s.trim()).filter(Boolean);
+      const email = await emailsApi.saveDraft({
+        userId: user.id,
+        accountId: activeAccountId,
+        to: toList,
+        cc: ccList,
+        bcc: bccList,
+        subject: data.subject,
+        bodyText: data.body,
+      });
+      invalidate();
+      return { success: true, emailId: email.id };
+    } catch (err) {
+      return { success: false, error: err instanceof Error ? err.message : 'Save failed' };
     } finally {
-      setSyncing(false);
+      setSavingDraft(false);
     }
-  }, [activeAccountId]);
+  }, [user, activeAccountId, invalidate]);
 
   const replyTo = useCallback((email: Email) => {
     openCompose({
@@ -83,6 +88,8 @@ export function useEmailActions() {
     });
   }, [openCompose]);
 
-  return { sendEmail, syncEmails, replyTo, forwardEmail, sending, syncing };
+  return {
+    sendEmail, saveDraft, replyTo, forwardEmail,
+    sending, savingDraft,
+  };
 }
-

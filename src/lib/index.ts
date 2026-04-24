@@ -12,6 +12,7 @@ export const ROUTE_PATHS = {
   DOMAINS: '/domains',
   ACCOUNTS: '/accounts',
   SETTINGS: '/settings',
+  RESET_PASSWORD: '/reset-password',
 } as const;
 
 // ─── Types ───────────────────────────────────────────────────────────────────
@@ -49,15 +50,10 @@ export interface EmailAccount {
   email: string;
   name: string;
   domainId: string;
-  imapHost: string;
-  imapPort: number;
-  smtpHost: string;
-  smtpPort: number;
-  username: string;
   enabled: boolean;
   storageUsedMb: number;
   storageQuotaMb: number;
-  lastSyncedAt?: string;
+  lastActivityAt?: string;
   createdAt: string;
 }
 

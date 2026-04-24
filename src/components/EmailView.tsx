@@ -5,7 +5,6 @@ import {
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
-import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import {
@@ -13,6 +12,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { useEmailStore } from '@/hooks/useEmailStore';
 import { useEmailActions } from '@/hooks/useEmailActions';
+import { useEmailMutations } from '@/hooks/useEmailMutations';
 import { getInitials, formatBytes } from '@/lib/index';
 import type { Email } from '@/lib/index';
 import { fadeInUp } from '@/lib/motion';
@@ -23,24 +23,25 @@ interface EmailViewProps {
 }
 
 export function EmailView({ email }: EmailViewProps) {
-  const { toggleStar, deleteEmail, markUnread, moveToFolder, setSelectedEmail } = useEmailStore();
+  const { setSelectedEmail } = useEmailStore();
+  const { toggleStar, deleteEmail, markUnread, moveToFolder } = useEmailMutations();
   const { replyTo, forwardEmail } = useEmailActions();
   const { toast } = useToast();
 
-  const handleDelete = () => {
-    deleteEmail(email.id);
+  const handleDelete = async () => {
+    await deleteEmail(email.id, email.folder);
     setSelectedEmail(null);
     toast({ title: email.folder === 'trash' ? 'Permanently deleted' : 'Moved to Trash' });
   };
 
-  const handleSpam = () => {
-    moveToFolder(email.id, 'spam');
+  const handleSpam = async () => {
+    await moveToFolder(email.id, 'spam');
     setSelectedEmail(null);
     toast({ title: 'Marked as spam' });
   };
 
-  const handleArchive = () => {
-    moveToFolder(email.id, 'trash');
+  const handleArchive = async () => {
+    await moveToFolder(email.id, 'trash');
     setSelectedEmail(null);
     toast({ title: 'Email archived' });
   };
@@ -70,7 +71,7 @@ export function EmailView({ email }: EmailViewProps) {
 
         <Button
           variant="ghost" size="sm"
-          onClick={() => toggleStar(email.id)}
+          onClick={() => void toggleStar(email.id, email.starred)}
           className={email.starred ? 'text-foreground' : 'text-muted-foreground'}
         >
           <Star className={`w-3.5 h-3.5 ${email.starred ? 'fill-foreground' : ''}`} />
@@ -86,7 +87,7 @@ export function EmailView({ email }: EmailViewProps) {
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
-            <DropdownMenuItem onClick={() => markUnread(email.id)}>
+            <DropdownMenuItem onClick={() => void markUnread(email.id)}>
               <MailOpen className="w-3.5 h-3.5 mr-2" /> Mark as unread
             </DropdownMenuItem>
             <DropdownMenuItem onClick={handleArchive}>

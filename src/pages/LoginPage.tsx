@@ -1,12 +1,13 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { Eye, EyeOff, ArrowRight, Mail, Lock, User, AlertCircle } from 'lucide-react';
+import { Eye, EyeOff, ArrowRight, Mail, Lock, User, AlertCircle, CheckCircle2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Separator } from '@/components/ui/separator';
 import { useAuth } from '@/hooks/useAuth';
+import { supabase } from '@/lib/supabase';
 import { ROUTE_PATHS } from '@/lib/index';
 import { fadeInUp } from '@/lib/motion';
 
@@ -26,6 +27,23 @@ export default function LoginPage() {
   const [signUpEmail, setSignUpEmail] = useState('');
   const [signUpPass, setSignUpPass] = useState('');
   const [signUpConfirm, setSignUpConfirm] = useState('');
+  const [resetSent, setResetSent] = useState(false);
+
+  const handleForgotPassword = async () => {
+    setError('');
+    setResetSent(false);
+    const target = signInEmail.trim();
+    if (!target) {
+      setError('Enter your email above first, then click "Forgot password?"');
+      return;
+    }
+    setLoading(true);
+    const redirectTo = `${window.location.origin}${window.location.pathname}#${ROUTE_PATHS.RESET_PASSWORD}`;
+    const { error: err } = await supabase.auth.resetPasswordForEmail(target, { redirectTo });
+    setLoading(false);
+    if (err) { setError(err.message); return; }
+    setResetSent(true);
+  };
 
   const handleSignIn = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -103,6 +121,14 @@ export default function LoginPage() {
             </motion.div>
           )}
 
+          {resetSent && (
+            <motion.div variants={fadeInUp} initial="hidden" animate="visible"
+              className="flex items-center gap-2 text-emerald-700 text-sm bg-emerald-50 border border-emerald-200 rounded-lg px-3 py-2 mb-4">
+              <CheckCircle2 className="w-4 h-4 shrink-0" />
+              <span>Password reset email sent. Check your inbox.</span>
+            </motion.div>
+          )}
+
           {/* Sign In */}
           {mode === 'signin' && (
             <form onSubmit={handleSignIn} className="space-y-4">
@@ -117,7 +143,7 @@ export default function LoginPage() {
               <div>
                 <div className="flex items-center justify-between mb-1.5">
                   <Label className="text-xs text-muted-foreground">Password</Label>
-                  <button type="button" className="text-xs text-muted-foreground hover:text-foreground transition-colors">Forgot password?</button>
+                  <button type="button" onClick={handleForgotPassword} disabled={loading} className="text-xs text-muted-foreground hover:text-foreground transition-colors">Forgot password?</button>
                 </div>
                 <div className="relative">
                   <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />

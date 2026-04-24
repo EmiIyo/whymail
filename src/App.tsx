@@ -14,6 +14,7 @@ import DomainsPage from "@/pages/DomainsPage";
 import AccountsPage from "@/pages/AccountsPage";
 import SettingsPage from "@/pages/SettingsPage";
 import LoginPage from "@/pages/LoginPage";
+import ResetPasswordPage from "@/pages/ResetPasswordPage";
 import NotFound from "./pages/not-found/Index";
 
 const queryClient = new QueryClient();
@@ -41,6 +42,7 @@ const App = () => (
       <HashRouter>
         <Routes>
           <Route path={ROUTE_PATHS.LOGIN} element={<LoginPage />} />
+          <Route path={ROUTE_PATHS.RESET_PASSWORD} element={<ResetPasswordPage />} />
           <Route path={ROUTE_PATHS.ALL_INBOX} element={<AppShell><AllInboxPage /></AppShell>} />
           <Route path={ROUTE_PATHS.INBOX} element={<AppShell><InboxPage /></AppShell>} />
           <Route path={ROUTE_PATHS.SENT} element={<AppShell><FolderPage folder="sent" title="Sent" emptyMessage="No sent emails." /></AppShell>} />

@@ -9,7 +9,7 @@ import { EmailView } from '@/components/EmailView';
 
 export default function SearchPage() {
   const { user } = useAuth();
-  const { selectedEmailId, emails: storeEmails } = useEmailStore();
+  const { selectedEmailId } = useEmailStore();
   const [query, setQuery] = useState('');
   const [submittedQuery, setSubmittedQuery] = useState('');
 
@@ -19,8 +19,7 @@ export default function SearchPage() {
     enabled: !!user && submittedQuery.trim().length > 0,
   });
 
-  const selectedEmail = results.find(e => e.id === selectedEmailId)
-    ?? storeEmails.find(e => e.id === selectedEmailId);
+  const selectedEmail = results.find(e => e.id === selectedEmailId);
   const showView = !!selectedEmail;
 
   const handleSubmit = useCallback((e: React.FormEvent) => {

@@ -1,16 +1,20 @@
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Star, Paperclip, Inbox } from 'lucide-react';
-import { emailsApi, accountsApi } from '@/api/index';
+import { emailsApi } from '@/api/index';
 import { useAuth } from '@/hooks/useAuth';
+import { useAccounts } from '@/hooks/useAccounts';
 import { useEmailStore } from '@/hooks/useEmailStore';
+import { useEmailMutations } from '@/hooks/useEmailMutations';
 import { formatEmailDate, getInitials } from '@/lib/index';
 import { EmailView } from '@/components/EmailView';
 import type { Email } from '@/lib/index';
 
 export default function AllInboxPage() {
   const { user } = useAuth();
-  const { selectedEmailId, setSelectedEmail, markRead } = useEmailStore();
+  const { setSelectedEmail } = useEmailStore();
+  const { accounts } = useAccounts();
+  const { markRead } = useEmailMutations();
   const [selected, setSelected] = useState<Email | null>(null);
 
   const { data: emails = [], isLoading } = useQuery({
@@ -20,18 +24,12 @@ export default function AllInboxPage() {
     refetchInterval: 60_000,
   });
 
-  const { data: accounts = [] } = useQuery({
-    queryKey: ['accounts'],
-    queryFn: () => accountsApi.list(),
-    enabled: !!user,
-  });
-
   const showView = !!selected;
 
   const handleSelect = (email: Email) => {
     setSelected(email);
     setSelectedEmail(email.id);
-    if (!email.read) markRead(email.id);
+    if (!email.read) void markRead(email.id);
   };
 
   const getAccountBadge = (accountId: string) => {

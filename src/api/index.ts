@@ -11,7 +11,7 @@ export const emailsApi = {
       .eq('folder', folder)
       .order('sent_at', { ascending: false });
     if (error) throw error;
-    return (data ?? []).map(rowToEmail);
+    return Promise.all((data ?? []).map(rowToEmail));
   },
 
   async listAll(userId: string): Promise<Email[]> {
@@ -22,7 +22,7 @@ export const emailsApi = {
       .eq('folder', 'inbox')
       .order('sent_at', { ascending: false });
     if (error) throw error;
-    return (data ?? []).map(rowToEmail);
+    return Promise.all((data ?? []).map(rowToEmail));
   },
 
   async search(userId: string, query: string): Promise<Email[]> {
@@ -34,7 +34,7 @@ export const emailsApi = {
       .order('sent_at', { ascending: false })
       .limit(50);
     if (error) throw error;
-    return (data ?? []).map(rowToEmail);
+    return Promise.all((data ?? []).map(rowToEmail));
   },
 
   async markRead(id: string): Promise<void> {
@@ -57,22 +57,34 @@ export const emailsApi = {
     await supabase.from('emails').delete().eq('id', id);
   },
 
-  async saveDraft(draft: Partial<Email> & { userId: string; accountId: string }): Promise<Email> {
+  async saveDraft(draft: {
+    userId: string;
+    accountId: string;
+    from?: string;
+    fromName?: string;
+    to?: string[];
+    cc?: string[];
+    bcc?: string[];
+    subject?: string;
+    bodyText?: string;
+    bodyHtml?: string;
+  }): Promise<Email> {
     const { data, error } = await supabase.from('emails').insert({
       user_id: draft.userId,
       account_id: draft.accountId,
       from_address: draft.from ?? '',
-      from_name: draft.fromName ?? '',
+      from_name: draft.fromName ?? null,
       to_addresses: draft.to ?? [],
-      cc_addresses: draft.cc,
-      bcc_addresses: draft.bcc,
+      cc_addresses: draft.cc && draft.cc.length ? draft.cc : null,
+      bcc_addresses: draft.bcc && draft.bcc.length ? draft.bcc : null,
       subject: draft.subject ?? '',
       body_text: draft.bodyText ?? '',
+      body_html: draft.bodyHtml ?? null,
       folder: 'drafts',
       is_read: true,
     }).select('*, attachments(*)').single();
     if (error) throw error;
-    return rowToEmail(data);
+    return await rowToEmail(data);
   },
 
   subscribeToInbox(userId: string, onNew: (email: Email) => void) {
@@ -83,12 +95,29 @@ export const emailsApi = {
         schema: 'public',
         table: 'emails',
         filter: `user_id=eq.${userId}`,
-      }, (payload) => { onNew(rowToEmail(payload.new as Record<string, unknown>)); })
+      }, async (payload) => {
+        const email = await rowToEmail(payload.new as Record<string, unknown>);
+        onNew(email);
+      })
       .subscribe();
   },
 };
 
 // ─── Domains ─────────────────────────────────────────────────
+export interface DomainCheckResult {
+  name: 'mx' | 'spf' | 'dkim' | 'dmarc';
+  pass: boolean;
+  observed: string | null;
+  expected: string;
+  message?: string;
+}
+
+export interface DomainVerifyResponse {
+  verified: boolean;
+  verification_status: 'pending' | 'verified' | 'failed';
+  checks: DomainCheckResult[];
+}
+
 export const domainsApi = {
   async list(): Promise<Domain[]> {
     const { data, error } = await supabase
@@ -101,10 +130,15 @@ export const domainsApi = {
 
   async create(name: string, userId: string): Promise<Domain> {
     const domainName = name.trim().toLowerCase();
-    const dnsBase = {
+    const dnsBase: {
+      mx_record: string;
+      spf_record: string;
+      dkim_record: string | null;
+      dmarc_record: string;
+    } = {
       mx_record: `10 mail.${domainName}`,
       spf_record: `v=spf1 include:mail.${domainName} ~all`,
-      dkim_record: 'v=DKIM1; k=rsa; p=MIIBIjANBgkqhkiG9w0BAQ...',
+      dkim_record: null,
       dmarc_record: `v=DMARC1; p=none; rua=mailto:dmarc@${domainName}`,
     };
     const { data, error } = await supabase
@@ -120,14 +154,14 @@ export const domainsApi = {
     await supabase.from('domains').delete().eq('id', id);
   },
 
-  async verify(id: string): Promise<{ verified: boolean }> {
+  async verify(id: string): Promise<DomainVerifyResponse> {
     const { data, error } = await supabase.functions.invoke('verify-domain', { body: { domainId: id } });
     if (error) throw error;
-    return data;
+    return data as DomainVerifyResponse;
   },
 };
 
-// ─── Email Accounts ───────────────────────────────────────────
+// ─── Email Accounts (self-hosted mailboxes) ───────────────────
 export const accountsApi = {
   async list(): Promise<EmailAccount[]> {
     const { data, error } = await supabase
@@ -139,25 +173,39 @@ export const accountsApi = {
   },
 
   async create(account: {
-    userId: string; email: string; displayName?: string;
-    domainId?: string; imapHost?: string; imapPort?: number;
-    smtpHost?: string; smtpPort?: number; username?: string; password?: string;
+    userId: string;
+    email: string;
+    displayName?: string;
+    domainId?: string;
   }): Promise<EmailAccount> {
     const { data, error } = await supabase
       .from('email_accounts')
       .insert({
         user_id: account.userId,
-        email: account.email,
-        display_name: account.displayName,
-        domain_id: account.domainId,
-        imap_host: account.imapHost,
-        imap_port: account.imapPort,
-        smtp_host: account.smtpHost,
-        smtp_port: account.smtpPort,
-        username: account.username,
-        password_encrypted: account.password,
+        email: account.email.trim().toLowerCase(),
+        display_name: account.displayName?.trim() || null,
+        domain_id: account.domainId || null,
       })
-      .select()
+      .select('*, domains(name)')
+      .single();
+    if (error) throw error;
+    return rowToAccount(data);
+  },
+
+  async update(id: string, patch: {
+    displayName?: string | null;
+    domainId?: string | null;
+    email?: string;
+  }): Promise<EmailAccount> {
+    const update: Record<string, unknown> = {};
+    if (patch.displayName !== undefined) update.display_name = patch.displayName;
+    if (patch.domainId !== undefined) update.domain_id = patch.domainId;
+    if (patch.email !== undefined) update.email = patch.email.trim().toLowerCase();
+    const { data, error } = await supabase
+      .from('email_accounts')
+      .update(update)
+      .eq('id', id)
+      .select('*, domains(name)')
       .single();
     if (error) throw error;
     return rowToAccount(data);
@@ -172,7 +220,6 @@ export const accountsApi = {
   },
 };
 
-// ─── Send & Sync ─────────────────────────────────────────────
 // ─── Profiles ────────────────────────────────────────────────
 export const profilesApi = {
   async get(userId: string): Promise<{ fullName: string | null; avatarUrl: string | null }> {
@@ -189,34 +236,97 @@ export const profilesApi = {
   },
 };
 
+// ─── Send ────────────────────────────────────────────────────
+interface AttachmentRef {
+  path: string;
+  filename: string;
+  mimeType?: string;
+  size?: number;
+}
+
+async function uploadAttachments(userId: string, files: File[]): Promise<AttachmentRef[]> {
+  const refs: AttachmentRef[] = [];
+  for (const file of files) {
+    const draftId = crypto.randomUUID();
+    const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_').slice(0, 120);
+    const path = `${userId}/outgoing/${draftId}/${safeName}`;
+    const { error } = await supabase.storage.from('attachments').upload(path, file, {
+      contentType: file.type || 'application/octet-stream',
+      upsert: false,
+    });
+    if (error) throw new Error(`Upload failed: ${file.name} (${error.message})`);
+    refs.push({ path, filename: file.name, mimeType: file.type || undefined, size: file.size });
+  }
+  return refs;
+}
+
 export const mailApi = {
   async send(payload: {
-    accountId: string; to: string; cc?: string; bcc?: string;
-    subject: string; body: string; attachments?: File[];
-  }): Promise<{ success: boolean; messageId?: string; error?: string }> {
-    const formData: Record<string, unknown> = {
-      accountId: payload.accountId,
-      to: payload.to,
-      cc: payload.cc,
-      bcc: payload.bcc,
-      subject: payload.subject,
-      body: payload.body,
-    };
-    const { data, error } = await supabase.functions.invoke('send-email', { body: formData });
-    if (error) return { success: false, error: error.message };
-    return data;
+    userId: string;
+    accountId: string;
+    to: string;
+    cc?: string;
+    bcc?: string;
+    subject: string;
+    body: string;
+    attachments?: File[];
+    inReplyTo?: string;
+    references?: string[];
+  }): Promise<{ success: boolean; messageId?: string; emailId?: string; error?: string }> {
+    let attachmentRefs: AttachmentRef[] = [];
+    try {
+      if (payload.attachments && payload.attachments.length > 0) {
+        attachmentRefs = await uploadAttachments(payload.userId, payload.attachments);
+      }
+      const { data, error } = await supabase.functions.invoke('send-email', {
+        body: {
+          accountId: payload.accountId,
+          to: payload.to,
+          cc: payload.cc,
+          bcc: payload.bcc,
+          subject: payload.subject,
+          body: payload.body,
+          attachments: attachmentRefs,
+          inReplyTo: payload.inReplyTo,
+          references: payload.references,
+        },
+      });
+      if (error) return { success: false, error: error.message };
+      if (!data?.success) return { success: false, error: data?.error ?? 'Send failed' };
+      return { success: true, messageId: data.messageId, emailId: data.emailId };
+    } catch (err) {
+      // Best-effort cleanup of uploaded attachments if send failed before persistence.
+      if (attachmentRefs.length > 0) {
+        const paths = attachmentRefs.map((a) => a.path);
+        await supabase.storage.from('attachments').remove(paths).catch(() => {});
+      }
+      return { success: false, error: err instanceof Error ? err.message : 'Send failed' };
+    }
   },
 
-  async sync(accountId: string): Promise<{ synced: number }> {
-    const { data, error } = await supabase.functions.invoke('sync-emails', { body: { accountId } });
-    if (error) throw error;
-    return data;
-  },
 };
 
 // ─── Row Mappers ─────────────────────────────────────────────
-function rowToEmail(row: Record<string, unknown>): Email {
+async function rowToEmail(row: Record<string, unknown>): Promise<Email> {
   const atts = Array.isArray(row.attachments) ? row.attachments : [];
+  const attachmentsResolved = await Promise.all(
+    atts.map(async (a: Record<string, unknown>) => {
+      let url = '#';
+      if (a.storage_path) {
+        const { data } = await supabase.storage
+          .from('attachments')
+          .createSignedUrl(a.storage_path as string, 60 * 60);
+        url = data?.signedUrl ?? '#';
+      }
+      return {
+        id: a.id as string,
+        filename: a.filename as string,
+        size: Number(a.size_bytes ?? 0),
+        mimeType: (a.mime_type as string) ?? '',
+        url,
+      };
+    }),
+  );
   return {
     id: row.id as string,
     accountId: row.account_id as string,
@@ -232,15 +342,7 @@ function rowToEmail(row: Record<string, unknown>): Email {
     read: row.is_read as boolean,
     starred: row.is_starred as boolean,
     date: row.sent_at as string,
-    attachments: atts.map((a: Record<string, unknown>) => ({
-      id: a.id as string,
-      filename: a.filename as string,
-      size: a.size_bytes as number,
-      mimeType: (a.mime_type as string) ?? '',
-      url: a.storage_path
-        ? supabase.storage.from('attachments').getPublicUrl(a.storage_path as string).data.publicUrl
-        : '#',
-    })),
+    attachments: attachmentsResolved,
   };
 }
 
@@ -267,15 +369,10 @@ function rowToAccount(row: Record<string, unknown>): EmailAccount {
     email: row.email as string,
     name: (row.display_name as string) ?? (row.email as string),
     domainId: (row.domain_id as string) ?? '',
-    imapHost: (row.imap_host as string) ?? '',
-    imapPort: (row.imap_port as number) ?? 993,
-    smtpHost: (row.smtp_host as string) ?? '',
-    smtpPort: (row.smtp_port as number) ?? 587,
-    username: (row.username as string) ?? '',
     enabled: row.enabled as boolean,
     storageUsedMb: (row.storage_used_mb as number) ?? 0,
     storageQuotaMb: (row.storage_quota_mb as number) ?? 5000,
-    lastSyncedAt: (row.last_synced_at as string) ?? undefined,
+    lastActivityAt: (row.last_activity_at as string) ?? undefined,
     createdAt: row.created_at as string,
   };
 }

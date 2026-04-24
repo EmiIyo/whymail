@@ -1,6 +1,6 @@
 import { useState, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Minimize2, Maximize2, Paperclip, Send, ChevronDown, Trash2 } from 'lucide-react';
+import { X, Minimize2, Maximize2, Paperclip, Send, ChevronDown, FileText } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -18,7 +18,7 @@ interface ComposeModalProps {
 }
 
 export function ComposeModal({ open, onClose, initialData }: ComposeModalProps) {
-  const { sendEmail, sending } = useEmailActions();
+  const { sendEmail, saveDraft, sending, savingDraft } = useEmailActions();
   const { toast } = useToast();
   const fileRef = useRef<HTMLInputElement>(null);
   const [minimized, setMinimized] = useState(false);
@@ -51,10 +51,20 @@ export function ComposeModal({ open, onClose, initialData }: ComposeModalProps) 
     }
     const result = await sendEmail(form);
     if (result.success) {
-      toast({ title: 'Email sent!', description: `Your message to ${form.to} was sent successfully.` });
+      toast({ title: 'Email sent', description: `Your message to ${form.to} was sent.` });
       onClose();
     } else {
       toast({ title: 'Failed to send', description: result.error, variant: 'destructive' });
+    }
+  };
+
+  const handleSaveDraft = async () => {
+    const result = await saveDraft(form);
+    if (result.success) {
+      toast({ title: 'Draft saved' });
+      onClose();
+    } else {
+      toast({ title: 'Failed to save draft', description: result.error, variant: 'destructive' });
     }
   };
 
@@ -176,9 +186,9 @@ export function ComposeModal({ open, onClose, initialData }: ComposeModalProps) 
 
               {/* Footer */}
               <div className="flex items-center gap-2 px-4 py-3 border-t border-border">
-                <Button onClick={handleSend} disabled={sending} className="gap-2 bg-primary text-primary-foreground" size="sm">
+                <Button onClick={handleSend} disabled={sending || savingDraft} className="gap-2 bg-primary text-primary-foreground" size="sm">
                   <Send className="w-3.5 h-3.5" />
-                  {sending ? 'Sending...' : 'Send'}
+                  {sending ? 'Sending…' : 'Send'}
                 </Button>
                 <input ref={fileRef} type="file" multiple className="hidden" onChange={handleFiles} />
                 <Button
@@ -186,13 +196,24 @@ export function ComposeModal({ open, onClose, initialData }: ComposeModalProps) 
                   size="sm"
                   onClick={() => fileRef.current?.click()}
                   className="gap-1.5 text-muted-foreground"
+                  disabled={sending || savingDraft}
                 >
                   <Paperclip className="w-3.5 h-3.5" />
                   Attach
                 </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={handleSaveDraft}
+                  className="gap-1.5 text-muted-foreground"
+                  disabled={sending || savingDraft}
+                >
+                  <FileText className="w-3.5 h-3.5" />
+                  {savingDraft ? 'Saving…' : 'Save Draft'}
+                </Button>
                 <div className="flex-1" />
                 <Button variant="ghost" size="sm" onClick={onClose} className="text-muted-foreground">
-                  <Trash2 className="w-3.5 h-3.5" />
+                  <X className="w-3.5 h-3.5" />
                 </Button>
               </div>
             </>
