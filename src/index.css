@@ -1,0 +1,214 @@
+@import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap");
+@import "tailwindcss";
+@import "tw-animate-css";
+
+@custom-variant dark (&:is(.dark *));
+
+/*
+==========================================================================
+【AI HANDOVER NOTE】
+1. DESIGN PHILOSOPHY:
+   - Atmosphere-First Professional Email Management: Inspired by Gmail, Fastmail, and ProtonMail's clean interfaces
+   - Neo-minimalism with Bento surfaces: Modular card-based layouts for email lists, domain cards, and account management panels
+   - Trust & Reliability: Professional SaaS aesthetic that conveys security and enterprise-grade email infrastructure
+   - Dark sidebar + Light content pattern: Maximizes focus on email content while providing persistent navigation
+
+2. TYPOGRAPHY:
+   - Inter: Modern geometric sans-serif chosen for exceptional readability at all sizes, perfect for dense email lists and long-form reading
+   - Neutral yet friendly personality suits professional email communication
+   - JetBrains Mono: Technical monospace for displaying email addresses, DNS records (MX, SPF, DKIM), SMTP/IMAP configurations, and server endpoints
+
+3. COLOR SYSTEM:
+   - Brand Primary (Teal/Cyan H=180): Evokes trust, technology, and clarity - core values for email infrastructure
+   - --brand maps to --primary (interactive elements, CTAs), --accent (highlights, badges), --ring (focus states)
+   - Sidebar uses deep navy (H=220, low lightness) for professional anchoring without pure black harshness
+   - Success (H=150 green): Email sent confirmations, domain verification success, account active states
+   - Warning (H=45 amber): DNS configuration pending, quota warnings, unverified domains
+   - Destructive (H=10 red): Delete emails, remove domains, disable accounts - clear danger signaling
+   - Chart colors: Teal spectrum for email analytics (storage usage, send/receive metrics, domain activity)
+
+4. USAGE GUIDE:
+   - Layout: Full-width dashboard with persistent dark sidebar (280px), main content area uses max-w-7xl container
+   - Sidebar: Dark navy background with teal accent for active items, subtle border-right separator
+   - Email list: Bento card surfaces with subtle borders, hover states with teal ring, unread emails use bold typography
+   - Compose modal: Centered overlay with backdrop-blur-sm, clean white surface, teal primary button
+   - Domain cards: White cards with status badges (green=verified, amber=pending, red=failed), monospace for DNS records
+   - Effects: Minimal shadows (shadow-sm for cards), no glassmorphism to maintain professional clarity
+   - Focus states: Teal ring (--ring) on all interactive elements for accessibility
+   - Responsive: Sidebar collapses to hamburger menu on mobile, email reading pane becomes full-screen modal
+==========================================================================
+*/
+
+:root {
+  /* Typography */
+  --font-sans: Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --font-mono: JetBrains Mono, 'Courier New', monospace;
+
+  /* Radius */
+  --radius: 0.5rem;
+
+  /* Core UI Tokens — Pure Black & White */
+  --background: oklch(1 0 0);
+  --foreground: oklch(0.08 0 0);
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.08 0 0);
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.08 0 0);
+  --primary: oklch(0.08 0 0);
+  --primary-foreground: oklch(1 0 0);
+  --secondary: oklch(0.96 0 0);
+  --secondary-foreground: oklch(0.12 0 0);
+  --muted: oklch(0.95 0 0);
+  --muted-foreground: oklch(0.45 0 0);
+  --accent: oklch(0.93 0 0);
+  --accent-foreground: oklch(0.08 0 0);
+  --destructive: oklch(0.45 0.18 25);
+  --destructive-foreground: oklch(1 0 0);
+  --border: oklch(0.88 0 0);
+  --input: oklch(0.88 0 0);
+  --ring: oklch(0.08 0 0);
+
+  /* Chart Tokens */
+  --chart-1: oklch(0.08 0 0);
+  --chart-2: oklch(0.25 0 0);
+  --chart-3: oklch(0.45 0 0);
+  --chart-4: oklch(0.65 0 0);
+  --chart-5: oklch(0.80 0 0);
+
+  /* Sidebar Tokens — Pure Black */
+  --sidebar: oklch(0.06 0 0);
+  --sidebar-foreground: oklch(0.90 0 0);
+  --sidebar-primary: oklch(1 0 0);
+  --sidebar-primary-foreground: oklch(0.06 0 0);
+  --sidebar-accent: oklch(0.14 0 0);
+  --sidebar-accent-foreground: oklch(0.90 0 0);
+  --sidebar-border: oklch(0.18 0 0);
+  --sidebar-ring: oklch(0.80 0 0);
+}
+
+.dark {
+  --background: oklch(0.06 0 0);
+  --foreground: oklch(0.95 0 0);
+  --card: oklch(0.10 0 0);
+  --card-foreground: oklch(0.95 0 0);
+  --popover: oklch(0.10 0 0);
+  --popover-foreground: oklch(0.95 0 0);
+  --primary: oklch(0.95 0 0);
+  --primary-foreground: oklch(0.06 0 0);
+  --secondary: oklch(0.16 0 0);
+  --secondary-foreground: oklch(0.90 0 0);
+  --muted: oklch(0.16 0 0);
+  --muted-foreground: oklch(0.55 0 0);
+  --accent: oklch(0.20 0 0);
+  --accent-foreground: oklch(0.95 0 0);
+  --destructive: oklch(0.50 0.18 25);
+  --destructive-foreground: oklch(0.95 0 0);
+  --border: oklch(0.20 0 0);
+  --input: oklch(0.20 0 0);
+  --ring: oklch(0.70 0 0);
+
+  /* Chart Tokens */
+  --chart-1: oklch(0.95 0 0);
+  --chart-2: oklch(0.75 0 0);
+  --chart-3: oklch(0.55 0 0);
+  --chart-4: oklch(0.38 0 0);
+  --chart-5: oklch(0.25 0 0);
+
+  /* Sidebar Tokens */
+  --sidebar: oklch(0.04 0 0);
+  --sidebar-foreground: oklch(0.88 0 0);
+  --sidebar-primary: oklch(0.95 0 0);
+  --sidebar-primary-foreground: oklch(0.04 0 0);
+  --sidebar-accent: oklch(0.12 0 0);
+  --sidebar-accent-foreground: oklch(0.90 0 0);
+  --sidebar-border: oklch(0.16 0 0);
+  --sidebar-ring: oklch(0.70 0 0);
+}
+
+@theme inline {
+  /* Shadcn Core Mapping */
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+
+  /* Charts Mapping */
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+
+  /* Sidebar Mapping */
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
+
+  /* Typography */
+  --font-sans: var(--font-sans);
+  --font-mono: var(--font-mono);
+
+  /* Radius */
+  --radius-lg: var(--radius);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-xl: calc(var(--radius) + 4px);
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+
+  html {
+    @apply scroll-smooth antialiased;
+  }
+
+  body {
+    @apply bg-background text-foreground font-sans min-h-screen;
+    font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    @apply font-semibold tracking-tight;
+  }
+
+  code, pre {
+    @apply font-mono;
+  }
+
+  ::selection {
+    @apply bg-primary/20 text-primary;
+  }
+
+  ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  ::-webkit-scrollbar-track {
+    @apply bg-transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    @apply bg-muted-foreground/20 rounded-full hover:bg-muted-foreground/40;
+  }
+}
