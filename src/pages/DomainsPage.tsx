@@ -1,10 +1,10 @@
-import { useRef, useState } from 'react';
+import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Plus, Globe, CheckCircle, XCircle, Clock, Trash2, Copy, ChevronDown, ChevronUp, Image as ImageIcon, Upload } from 'lucide-react';
-import { domainsApi, type DomainCheckResult, type DomainVerifyResponse } from '@/api/index';
+import { Plus, Globe, CheckCircle, XCircle, Clock, Trash2, Copy, ChevronDown, ChevronUp, Users, X } from 'lucide-react';
+import { domainsApi, domainAdminsApi, type DomainCheckResult, type DomainVerifyResponse } from '@/api/index';
 import { useAuth } from '@/hooks/useAuth';
 import { useToast } from '@/hooks/use-toast';
-import type { Domain } from '@/lib/index';
+import type { Domain, DomainAdmin } from '@/lib/index';
 
 export default function DomainsPage() {
   const { user } = useAuth();
@@ -50,21 +50,31 @@ export default function DomainsPage() {
     },
   });
 
-  const brandingMutation = useMutation({
-    mutationFn: (args: { domainId: string; kind?: 'logo' | 'bimi'; file?: File; clear?: boolean }) =>
-      domainsApi.updateBranding(args),
-    onSuccess: (_, args) => {
-      qc.invalidateQueries({ queryKey: ['domains'] });
-      const isBimi = args.kind === 'bimi';
-      toast({
-        title: args.clear ? (isBimi ? 'BIMI logo removed' : 'Footer logo removed') : (isBimi ? 'BIMI logo uploaded' : 'Footer logo uploaded'),
-        description: args.clear
-          ? (isBimi ? 'Sender avatar (BIMI) is no longer published.' : 'Outbound mail will no longer include the brand logo.')
-          : (isBimi ? 'Now add the BIMI DNS record below to publish your sender avatar.' : 'New mail from this domain will include the logo footer.'),
-      });
+  // Multi-admin team management
+  const [adminEmail, setAdminEmail] = useState<Record<string, string>>({});
+
+  const addAdminMutation = useMutation({
+    mutationFn: ({ domainId, email }: { domainId: string; email: string }) =>
+      domainAdminsApi.add(domainId, email),
+    onSuccess: (_, vars) => {
+      qc.invalidateQueries({ queryKey: ['domain-admins', vars.domainId] });
+      setAdminEmail((s) => ({ ...s, [vars.domainId]: '' }));
+      toast({ title: 'Admin added' });
     },
     onError: (err: Error) => {
-      toast({ title: 'Branding update failed', description: err.message, variant: 'destructive' });
+      toast({ title: 'Could not add admin', description: err.message, variant: 'destructive' });
+    },
+  });
+
+  const removeAdminMutation = useMutation({
+    mutationFn: ({ domainId, userId }: { domainId: string; userId: string }) =>
+      domainAdminsApi.remove(domainId, userId),
+    onSuccess: (_, vars) => {
+      qc.invalidateQueries({ queryKey: ['domain-admins', vars.domainId] });
+      toast({ title: 'Admin removed' });
+    },
+    onError: (err: Error) => {
+      toast({ title: 'Could not remove admin', description: err.message, variant: 'destructive' });
     },
   });
 
@@ -80,25 +90,14 @@ export default function DomainsPage() {
     return <Clock size={14} className="text-white/40" />;
   };
 
-  const dnsRecords = (d: Domain) => {
-    const base = [
-      { type: 'MX',   name: '@',                  value: '10 route1.mx.cloudflare.net',                                    note: 'Inbound via Cloudflare Email Routing' },
-      { type: 'MX',   name: '@',                  value: '10 route2.mx.cloudflare.net',                                    note: 'Inbound via Cloudflare Email Routing' },
-      { type: 'MX',   name: '@',                  value: '10 route3.mx.cloudflare.net',                                    note: 'Inbound via Cloudflare Email Routing' },
-      { type: 'TXT',  name: '@',                  value: 'v=spf1 include:amazonses.com ~all',                              note: 'Outbound SPF (Resend uses AWS SES under the hood)' },
-      { type: 'CNAME',name: `resend._domainkey`,  value: 'resend.com',                                                     note: 'DKIM for outbound (Resend will show the exact target when you verify the domain on resend.com)' },
-      { type: 'TXT',  name: '_dmarc',             value: `v=DMARC1; p=none; rua=mailto:dmarc@${d.name}`,                   note: 'Optional but recommended' },
-    ];
-    if (d.brandBimiUrl) {
-      base.push({
-        type: 'TXT',
-        name: 'default._bimi',
-        value: `v=BIMI1; l=${d.brandBimiUrl}`,
-        note: 'BIMI — Apple Mail / Yahoo show your logo as the sender avatar (Gmail needs a paid VMC certificate)',
-      });
-    }
-    return base;
-  };
+  const dnsRecords = (d: Domain) => [
+    { type: 'MX',   name: '@',                  value: '10 route1.mx.cloudflare.net',                                    note: 'Inbound via Cloudflare Email Routing' },
+    { type: 'MX',   name: '@',                  value: '10 route2.mx.cloudflare.net',                                    note: 'Inbound via Cloudflare Email Routing' },
+    { type: 'MX',   name: '@',                  value: '10 route3.mx.cloudflare.net',                                    note: 'Inbound via Cloudflare Email Routing' },
+    { type: 'TXT',  name: '@',                  value: 'v=spf1 include:amazonses.com ~all',                              note: 'Outbound SPF (Resend uses AWS SES under the hood)' },
+    { type: 'CNAME',name: `resend._domainkey`,  value: 'resend.com',                                                     note: 'DKIM for outbound (Resend will show the exact target when you verify the domain on resend.com)' },
+    { type: 'TXT',  name: '_dmarc',             value: `v=DMARC1; p=none; rua=mailto:dmarc@${d.name}`,                   note: 'Optional but recommended' },
+  ];
 
   return (
     <div className="flex-1 flex flex-col min-h-0 bg-white">
@@ -141,8 +140,8 @@ export default function DomainsPage() {
         </div>
       )}
 
-      {/* Domain list */}
-      <div className="flex-1 overflow-y-auto px-6 py-4 space-y-3">
+      {/* Domain list — extra bottom padding so the last expanded card clears the mobile tab bar */}
+      <div className="flex-1 overflow-y-auto px-6 py-4 space-y-3 pb-24 lg:pb-4">
         {isLoading && (
           <div className="flex items-center justify-center py-16">
             <div className="w-5 h-5 border-2 border-black/20 border-t-black rounded-full animate-spin" />
@@ -201,11 +200,15 @@ export default function DomainsPage() {
             {/* DNS records */}
             {expanded === domain.id && (
               <div className="border-t border-black/5 px-4 py-3 bg-black/[0.02] space-y-4">
-                <BrandingSection
-                  domain={domain}
-                  isPending={brandingMutation.isPending}
-                  onUpload={(kind, file) => brandingMutation.mutate({ domainId: domain.id, kind, file })}
-                  onClear={(kind) => brandingMutation.mutate({ domainId: domain.id, kind, clear: true })}
+                <AdminsSection
+                  domainId={domain.id}
+                  currentUserId={user?.id}
+                  emailDraft={adminEmail[domain.id] ?? ''}
+                  onEmailChange={(v) => setAdminEmail((s) => ({ ...s, [domain.id]: v }))}
+                  onAdd={() => addAdminMutation.mutate({ domainId: domain.id, email: adminEmail[domain.id] ?? '' })}
+                  onRemove={(uid) => removeAdminMutation.mutate({ domainId: domain.id, userId: uid })}
+                  isAdding={addAdminMutation.isPending}
+                  isRemoving={removeAdminMutation.isPending}
                 />
                 <div>
                   <p className="text-xs font-medium text-black/60 mb-2">DNS Records — Add these in your Cloudflare DNS dashboard</p>
@@ -260,106 +263,122 @@ export default function DomainsPage() {
   );
 }
 
-interface BrandingSectionProps {
-  domain: Domain;
-  isPending: boolean;
-  onUpload: (kind: 'logo' | 'bimi', file: File) => void;
-  onClear: (kind: 'logo' | 'bimi') => void;
+interface AdminsSectionProps {
+  domainId: string;
+  currentUserId: string | undefined;
+  emailDraft: string;
+  onEmailChange: (v: string) => void;
+  onAdd: () => void;
+  onRemove: (userId: string) => void;
+  isAdding: boolean;
+  isRemoving: boolean;
 }
 
-function BrandingSection({ domain, isPending, onUpload, onClear }: BrandingSectionProps) {
+function AdminsSection({
+  domainId, currentUserId, emailDraft, onEmailChange, onAdd, onRemove, isAdding, isRemoving,
+}: AdminsSectionProps) {
+  const { data: admins = [], isLoading } = useQuery({
+    queryKey: ['domain-admins', domainId],
+    queryFn: () => domainAdminsApi.list(domainId),
+  });
+  const owner = admins.find((a) => a.isOwner);
+  const isCurrentUserOwner = !!owner && owner.userId === currentUserId;
+  const coAdmins = admins.filter((a) => !a.isOwner);
+
   return (
     <div>
       <p className="text-xs font-medium text-black/60 mb-2 flex items-center gap-1.5">
-        <ImageIcon size={12} /> Branding
+        <Users size={12} /> Admins
       </p>
-      <div className="space-y-2">
-        <BrandingRow
-          label="Footer logo"
-          help="Appended to the bottom of every outbound email from this domain."
-          accept="image/png,image/jpeg,image/webp,image/svg+xml"
-          fileTypeHint="PNG, JPG, WEBP or SVG · max 1 MB · ~200×60"
-          imageUrl={domain.brandLogoUrl}
-          isPending={isPending}
-          onUpload={(file) => onUpload('logo', file)}
-          onClear={() => onClear('logo')}
-        />
-        <BrandingRow
-          label="Sender avatar (BIMI)"
-          help={
-            domain.brandBimiUrl
-              ? 'SVG uploaded. Add the BIMI DNS record below so Apple Mail / Yahoo show your logo as the sender avatar.'
-              : 'SVG only (square 1:1). Free; works in Apple Mail / Yahoo / AOL. Gmail requires a paid VMC certificate.'
-          }
-          accept="image/svg+xml"
-          fileTypeHint="SVG only · BIMI Tiny PS profile · max 1 MB"
-          imageUrl={domain.brandBimiUrl}
-          isPending={isPending}
-          onUpload={(file) => onUpload('bimi', file)}
-          onClear={() => onClear('bimi')}
-        />
+      <div className="bg-white border border-black/10 rounded-lg divide-y divide-black/5">
+        {isLoading && (
+          <div className="px-3 py-3 text-xs text-black/40">Loading…</div>
+        )}
+
+        {owner && (
+          <AdminRow
+            admin={owner}
+            roleLabel="Owner"
+            canRemove={false}
+            onRemove={() => { /* no-op for owner */ }}
+            isRemoving={false}
+          />
+        )}
+
+        {coAdmins.map((a) => (
+          <AdminRow
+            key={a.userId}
+            admin={a}
+            roleLabel="Admin"
+            canRemove={isCurrentUserOwner}
+            onRemove={() => {
+              if (window.confirm(`Remove this admin from the domain?`)) onRemove(a.userId);
+            }}
+            isRemoving={isRemoving}
+          />
+        ))}
+
+        {!isLoading && coAdmins.length === 0 && (
+          <div className="px-3 py-2.5 text-[11px] text-black/40">
+            No co-admins yet. Add another WhyMail user to share full domain control.
+          </div>
+        )}
       </div>
+
+      {isCurrentUserOwner && (
+        <div className="mt-2 flex gap-2">
+          <input
+            type="email"
+            value={emailDraft}
+            onChange={(e) => onEmailChange(e.target.value)}
+            onKeyDown={(e) => e.key === 'Enter' && emailDraft.trim() && onAdd()}
+            placeholder="user@example.com (must already have a WhyMail account)"
+            className="flex-1 text-xs border border-black/15 rounded-lg px-3 py-2 outline-none focus:border-black bg-white"
+          />
+          <button
+            onClick={onAdd}
+            disabled={isAdding || !emailDraft.trim()}
+            className="text-xs bg-black text-white px-3 py-2 rounded-lg hover:bg-black/80 disabled:opacity-50 transition-colors"
+          >
+            {isAdding ? 'Adding…' : 'Add admin'}
+          </button>
+        </div>
+      )}
     </div>
   );
 }
 
-interface BrandingRowProps {
-  label: string;
-  help: string;
-  accept: string;
-  fileTypeHint: string;
-  imageUrl: string | null;
-  isPending: boolean;
-  onUpload: (file: File) => void;
-  onClear: () => void;
+interface AdminRowProps {
+  admin: DomainAdmin;
+  roleLabel: string;
+  canRemove: boolean;
+  onRemove: () => void;
+  isRemoving: boolean;
 }
 
-function BrandingRow({ label, help, accept, fileTypeHint, imageUrl, isPending, onUpload, onClear }: BrandingRowProps) {
-  const fileRef = useRef<HTMLInputElement>(null);
+function AdminRow({ admin, roleLabel, canRemove, onRemove, isRemoving }: AdminRowProps) {
+  const display = admin.email || `User ${admin.userId.slice(0, 8)}…`;
   return (
-    <div className="bg-white border border-black/10 rounded-lg p-3">
-      <div className="flex items-center gap-3">
-        <div className="w-20 h-12 bg-black/[0.03] border border-black/10 rounded flex items-center justify-center overflow-hidden shrink-0">
-          {imageUrl ? (
-            <img src={imageUrl} alt="" className="max-w-full max-h-full object-contain" />
-          ) : (
-            <ImageIcon size={16} className="text-black/20" />
-          )}
+    <div className="flex items-center justify-between px-3 py-2.5 gap-2">
+      <div className="flex items-center gap-2 min-w-0">
+        <div className="w-7 h-7 rounded-full bg-black/5 flex items-center justify-center text-[10px] font-semibold text-black/60 shrink-0">
+          {(display[0] ?? '?').toUpperCase()}
         </div>
-        <div className="flex-1 min-w-0">
-          <p className="text-xs font-medium text-black/80">{label}</p>
-          <p className="text-xs text-black/55 leading-snug mt-0.5">{help}</p>
-          <p className="text-[10px] text-black/40 mt-0.5">{fileTypeHint}</p>
+        <div className="min-w-0">
+          <p className="text-xs text-black/80 truncate">{display}</p>
+          <p className="text-[10px] text-black/40">{roleLabel}{admin.addedAt ? ` · added ${new Date(admin.addedAt).toLocaleDateString()}` : ''}</p>
         </div>
-        <input
-          ref={fileRef}
-          type="file"
-          accept={accept}
-          className="hidden"
-          onChange={(e) => {
-            const f = e.target.files?.[0];
-            if (f) onUpload(f);
-            if (fileRef.current) fileRef.current.value = '';
-          }}
-        />
-        <button
-          onClick={() => fileRef.current?.click()}
-          disabled={isPending}
-          className="text-xs flex items-center gap-1 bg-black text-white px-3 py-1.5 rounded-lg hover:bg-black/80 disabled:opacity-50 transition-colors"
-        >
-          <Upload size={12} />
-          {isPending ? 'Uploading…' : (imageUrl ? 'Replace' : 'Upload')}
-        </button>
-        {imageUrl && (
-          <button
-            onClick={onClear}
-            disabled={isPending}
-            className="text-xs text-black/50 px-2 hover:text-red-600 transition-colors"
-          >
-            Remove
-          </button>
-        )}
       </div>
+      {canRemove && (
+        <button
+          onClick={onRemove}
+          disabled={isRemoving}
+          className="p-1.5 text-black/40 hover:text-red-600 rounded transition-colors disabled:opacity-50"
+          title="Remove admin"
+        >
+          <X size={14} />
+        </button>
+      )}
     </div>
   );
 }

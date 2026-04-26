@@ -1,5 +1,5 @@
 import { supabase } from '@/lib/supabase';
-import type { Email, Domain, EmailAccount, Folder } from '@/lib/index';
+import type { Email, Domain, DomainAdmin, EmailAccount, Folder } from '@/lib/index';
 
 // ─── Emails ──────────────────────────────────────────────────
 export const emailsApi = {
@@ -159,41 +159,87 @@ export const domainsApi = {
     if (error) throw error;
     return data as DomainVerifyResponse;
   },
+};
 
-  async updateBranding(payload: {
-    domainId: string;
-    kind?: 'logo' | 'bimi';   // default 'logo'
-    file?: File;              // present => upload
-    clear?: boolean;          // present => remove
-  }): Promise<{ brandLogoUrl: string | null; brandBimiUrl: string | null }> {
-    let body: Record<string, unknown>;
-    const kind = payload.kind ?? 'logo';
-    if (payload.clear) {
-      body = { domainId: payload.domainId, kind, clear: true };
-    } else if (payload.file) {
-      const buf = await payload.file.arrayBuffer();
-      const bytes = new Uint8Array(buf);
-      const chunkSize = 0x8000;
-      let binary = '';
-      for (let i = 0; i < bytes.length; i += chunkSize) {
-        binary += String.fromCharCode(...bytes.subarray(i, i + chunkSize));
-      }
-      body = {
-        domainId: payload.domainId,
-        kind,
-        logoBase64: btoa(binary),
-        mimeType: payload.file.type,
-      };
-    } else {
-      throw new Error('Provide either file or clear');
+// ─── Domain Admins (co-admin team) ────────────────────────────
+export const domainAdminsApi = {
+  async list(domainId: string): Promise<DomainAdmin[]> {
+    // Fetch the domain row (for the owner) plus the co-admin list. We resolve
+    // emails by joining via auth.users through a helper view... but since
+    // auth schema isn't directly queryable from the client, we expose the
+    // owner's email via the existing domains row (set on insert) and look up
+    // co-admin emails using profiles.
+    const { data: domain } = await supabase
+      .from('domains')
+      .select('id, user_id')
+      .eq('id', domainId)
+      .maybeSingle();
+    if (!domain) return [];
+
+    const { data: adminsRows } = await supabase
+      .from('domain_admins')
+      .select('domain_id, user_id, added_at')
+      .eq('domain_id', domainId);
+
+    // Resolve emails via profiles (best-effort) plus the current user's own email if listed.
+    const userIds = [
+      domain.user_id as string,
+      ...((adminsRows ?? []).map((r) => r.user_id as string)),
+    ].filter((v, i, arr) => arr.indexOf(v) === i);
+
+    const { data: profiles } = await supabase
+      .from('profiles')
+      .select('id, full_name')
+      .in('id', userIds);
+
+    // We can't directly read auth.users from client, so we surface the userId
+    // and rely on the server-side lookup for invites. For display, use full_name
+    // when available, else show the userId truncated.
+    const profileById = new Map((profiles ?? []).map((p) => [p.id as string, p as { id: string; full_name: string | null }]));
+
+    const result: DomainAdmin[] = [];
+    result.push({
+      domainId: domainId,
+      userId: domain.user_id as string,
+      email: profileById.get(domain.user_id as string)?.full_name ?? '',
+      isOwner: true,
+      addedAt: null,
+    });
+    for (const a of adminsRows ?? []) {
+      result.push({
+        domainId: a.domain_id as string,
+        userId: a.user_id as string,
+        email: profileById.get(a.user_id as string)?.full_name ?? '',
+        isOwner: false,
+        addedAt: a.added_at as string,
+      });
     }
-    const { data, error } = await supabase.functions.invoke('update-domain-branding', { body });
+    return result;
+  },
+
+  async add(domainId: string, email: string): Promise<DomainAdmin> {
+    const { data, error } = await supabase.functions.invoke('add-domain-admin', {
+      body: { domainId, email },
+    });
     if (error) throw new Error(error.message);
     if (data?.error) throw new Error(data.error);
+    const a = data?.admin;
+    if (!a) throw new Error('Failed to add admin');
     return {
-      brandLogoUrl: data?.domain?.brand_logo_url ?? null,
-      brandBimiUrl: data?.domain?.brand_bimi_url ?? null,
+      domainId: a.domainId,
+      userId: a.userId,
+      email: a.email,
+      isOwner: false,
+      addedAt: a.addedAt ?? null,
     };
+  },
+
+  async remove(domainId: string, userId: string): Promise<void> {
+    const { data, error } = await supabase.functions.invoke('remove-domain-admin', {
+      body: { domainId, userId },
+    });
+    if (error) throw new Error(error.message);
+    if (data?.error) throw new Error(data.error);
   },
 };
 
@@ -435,8 +481,7 @@ function rowToDomain(row: Record<string, unknown>): Domain {
     spfRecord: (row.spf_record as string) ?? '',
     dkimRecord: (row.dkim_record as string) ?? '',
     dmarcRecord: (row.dmarc_record as string) ?? '',
-    brandLogoUrl: (row.brand_logo_url as string | null) ?? null,
-    brandBimiUrl: (row.brand_bimi_url as string | null) ?? null,
+    ownerUserId: row.user_id as string,
     createdAt: row.created_at as string,
     accountCount: Number(count),
   };

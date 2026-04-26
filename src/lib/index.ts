@@ -71,10 +71,17 @@ export interface Domain {
   spfRecord: string;
   dkimRecord: string;
   dmarcRecord: string;
-  brandLogoUrl: string | null;
-  brandBimiUrl: string | null;
+  ownerUserId: string;
   createdAt: string;
   accountCount: number;
+}
+
+export interface DomainAdmin {
+  domainId: string;
+  userId: string;
+  email: string;
+  isOwner: boolean;
+  addedAt: string | null;
 }
 
 export interface ComposeData {
