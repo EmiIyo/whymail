@@ -25,6 +25,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { ComposeModal } from '@/components/ComposeModal';
 import { MobileTabBar } from '@/components/MobileTabBar';
 import { MobileFAB } from '@/components/MobileFAB';
+import { InstallBanner } from '@/components/InstallBanner';
 import { springPresets } from '@/lib/motion';
 
 import type { Folder } from '@/lib/index';
@@ -284,6 +285,9 @@ export function Layout({ children }: LayoutProps) {
       {/* Mobile bottom navigation + floating compose button */}
       <MobileTabBar />
       <MobileFAB />
+
+      {/* PWA install nudge (mobile only, dismissable) */}
+      <InstallBanner />
 
       {/* Compose Modal */}
       <ComposeModal open={composeOpen} onClose={closeCompose} initialData={composeDraft} />
