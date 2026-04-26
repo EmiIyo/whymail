@@ -162,16 +162,17 @@ export const domainsApi = {
 
   async updateBranding(payload: {
     domainId: string;
-    file?: File;            // present => upload new logo
-    clear?: boolean;        // present => remove existing logo
-  }): Promise<{ brandLogoUrl: string | null }> {
+    kind?: 'logo' | 'bimi';   // default 'logo'
+    file?: File;              // present => upload
+    clear?: boolean;          // present => remove
+  }): Promise<{ brandLogoUrl: string | null; brandBimiUrl: string | null }> {
     let body: Record<string, unknown>;
+    const kind = payload.kind ?? 'logo';
     if (payload.clear) {
-      body = { domainId: payload.domainId, clear: true };
+      body = { domainId: payload.domainId, kind, clear: true };
     } else if (payload.file) {
       const buf = await payload.file.arrayBuffer();
       const bytes = new Uint8Array(buf);
-      // Chunked base64 encode (avoids stack overflow for ~1MB files)
       const chunkSize = 0x8000;
       let binary = '';
       for (let i = 0; i < bytes.length; i += chunkSize) {
@@ -179,6 +180,7 @@ export const domainsApi = {
       }
       body = {
         domainId: payload.domainId,
+        kind,
         logoBase64: btoa(binary),
         mimeType: payload.file.type,
       };
@@ -188,7 +190,10 @@ export const domainsApi = {
     const { data, error } = await supabase.functions.invoke('update-domain-branding', { body });
     if (error) throw new Error(error.message);
     if (data?.error) throw new Error(data.error);
-    return { brandLogoUrl: data?.domain?.brand_logo_url ?? null };
+    return {
+      brandLogoUrl: data?.domain?.brand_logo_url ?? null,
+      brandBimiUrl: data?.domain?.brand_bimi_url ?? null,
+    };
   },
 };
 
@@ -431,6 +436,7 @@ function rowToDomain(row: Record<string, unknown>): Domain {
     dkimRecord: (row.dkim_record as string) ?? '',
     dmarcRecord: (row.dmarc_record as string) ?? '',
     brandLogoUrl: (row.brand_logo_url as string | null) ?? null,
+    brandBimiUrl: (row.brand_bimi_url as string | null) ?? null,
     createdAt: row.created_at as string,
     accountCount: Number(count),
   };

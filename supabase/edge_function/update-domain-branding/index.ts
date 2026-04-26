@@ -1,22 +1,32 @@
 import { adminClient, jsonResponse, preflight, requireUser, UnauthorizedError } from '../_shared/http.ts';
 
+type Kind = 'logo' | 'bimi';
+
 interface UpdatePayload {
   domainId: string;
-  // Provide one of:
-  //  - { logoBase64: '...', mimeType: 'image/png' } to upload a new logo
-  //  - { clear: true } to remove the current logo
+  kind?: Kind;        // default 'logo'
   logoBase64?: string;
   mimeType?: string;
   clear?: boolean;
 }
 
-const MAX_BYTES = 1024 * 1024; // 1 MiB
-const ALLOWED_MIMES = new Set(['image/png', 'image/jpeg', 'image/webp', 'image/svg+xml']);
+const MAX_BYTES = 1024 * 1024;
+const LOGO_MIMES = new Set(['image/png', 'image/jpeg', 'image/webp', 'image/svg+xml']);
+const BIMI_MIME = 'image/svg+xml';
 const EXT_BY_MIME: Record<string, string> = {
   'image/png': 'png',
   'image/jpeg': 'jpg',
   'image/webp': 'webp',
   'image/svg+xml': 'svg',
+};
+
+const COLUMN_BY_KIND: Record<Kind, 'brand_logo_url' | 'brand_bimi_url'> = {
+  logo: 'brand_logo_url',
+  bimi: 'brand_bimi_url',
+};
+const PREFIX_BY_KIND: Record<Kind, string> = {
+  logo: 'logo',
+  bimi: 'bimi',
 };
 
 function fromBase64(b64: string): Uint8Array {
@@ -37,9 +47,14 @@ Deno.serve(async (req: Request) => {
     const payload = (await req.json()) as UpdatePayload;
     if (!payload?.domainId) return jsonResponse({ error: 'domainId is required' }, 400);
 
+    const kind: Kind = payload.kind ?? 'logo';
+    if (kind !== 'logo' && kind !== 'bimi') {
+      return jsonResponse({ error: `Unsupported kind: ${kind}` }, 400);
+    }
+
     const dRes = await admin
       .from('domains')
-      .select('id, user_id, brand_logo_url')
+      .select('id, user_id, brand_logo_url, brand_bimi_url')
       .eq('id', payload.domainId)
       .maybeSingle();
     if (dRes.error) throw dRes.error;
@@ -47,18 +62,23 @@ Deno.serve(async (req: Request) => {
     if (!domain) return jsonResponse({ error: 'Domain not found' }, 404);
     if (domain.user_id !== adminUser.id) return jsonResponse({ error: 'You do not own this domain' }, 403);
 
+    const column = COLUMN_BY_KIND[kind];
+    const filePrefix = PREFIX_BY_KIND[kind];
+
     if (payload.clear) {
-      // Best-effort: try to remove all objects under this domain's prefix.
+      // Remove only files of this kind, leave the other one intact.
       const list = await admin.storage.from('branding').list(payload.domainId, { limit: 100 });
-      const paths = (list.data ?? []).map((o) => `${payload.domainId}/${o.name}`);
+      const paths = (list.data ?? [])
+        .filter((o) => o.name.startsWith(`${filePrefix}-`))
+        .map((o) => `${payload.domainId}/${o.name}`);
       if (paths.length > 0) {
         await admin.storage.from('branding').remove(paths).catch((err) => console.error('branding cleanup failed', err));
       }
       const upd = await admin
         .from('domains')
-        .update({ brand_logo_url: null })
+        .update({ [column]: null })
         .eq('id', payload.domainId)
-        .select('id, brand_logo_url')
+        .select('id, brand_logo_url, brand_bimi_url')
         .single();
       if (upd.error) throw upd.error;
       return jsonResponse({ domain: upd.data });
@@ -67,21 +87,25 @@ Deno.serve(async (req: Request) => {
     if (!payload.logoBase64 || !payload.mimeType) {
       return jsonResponse({ error: 'logoBase64 and mimeType are required' }, 400);
     }
-    if (!ALLOWED_MIMES.has(payload.mimeType)) {
-      return jsonResponse({ error: 'Unsupported image type. Use PNG, JPEG, WEBP or SVG.' }, 400);
+
+    if (kind === 'bimi') {
+      if (payload.mimeType !== BIMI_MIME) {
+        return jsonResponse({ error: 'BIMI logo must be an SVG (image/svg+xml). Convert to BIMI SVG Tiny PS first.' }, 400);
+      }
+    } else {
+      if (!LOGO_MIMES.has(payload.mimeType)) {
+        return jsonResponse({ error: 'Unsupported image type. Use PNG, JPEG, WEBP or SVG.' }, 400);
+      }
     }
 
     const bytes = fromBase64(payload.logoBase64);
     if (bytes.byteLength > MAX_BYTES) {
-      return jsonResponse({ error: 'Logo must be under 1 MB' }, 400);
+      return jsonResponse({ error: 'File must be under 1 MB' }, 400);
     }
 
     const ext = EXT_BY_MIME[payload.mimeType];
-    // Cache-bust the URL by including a short timestamp suffix so updated
-    // logos appear immediately to recipients (mail clients aggressively cache
-    // images by URL).
     const cacheKey = Date.now().toString(36);
-    const path = `${payload.domainId}/logo-${cacheKey}.${ext}`;
+    const path = `${payload.domainId}/${filePrefix}-${cacheKey}.${ext}`;
 
     const upload = await admin.storage.from('branding').upload(path, bytes, {
       contentType: payload.mimeType,
@@ -89,9 +113,10 @@ Deno.serve(async (req: Request) => {
     });
     if (upload.error) throw upload.error;
 
-    // Remove older versions to keep storage tidy.
+    // Remove older versions of THIS kind only.
     const list = await admin.storage.from('branding').list(payload.domainId, { limit: 100 });
     const olderPaths = (list.data ?? [])
+      .filter((o) => o.name.startsWith(`${filePrefix}-`))
       .map((o) => `${payload.domainId}/${o.name}`)
       .filter((p) => p !== path);
     if (olderPaths.length > 0) {
@@ -102,9 +127,9 @@ Deno.serve(async (req: Request) => {
 
     const upd = await admin
       .from('domains')
-      .update({ brand_logo_url: publicUrl })
+      .update({ [column]: publicUrl })
       .eq('id', payload.domainId)
-      .select('id, brand_logo_url')
+      .select('id, brand_logo_url, brand_bimi_url')
       .single();
     if (upd.error) throw upd.error;
 

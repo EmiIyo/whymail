@@ -72,6 +72,7 @@ export interface Domain {
   dkimRecord: string;
   dmarcRecord: string;
   brandLogoUrl: string | null;
+  brandBimiUrl: string | null;
   createdAt: string;
   accountCount: number;
 }

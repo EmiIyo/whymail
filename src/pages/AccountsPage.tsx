@@ -29,9 +29,10 @@ export default function AccountsPage() {
   const [resetPassword, setResetPassword] = useState('');
   const [resetConfirm, setResetConfirm] = useState('');
   const [resetError, setResetError] = useState<string | null>(null);
-  const [recoveryTarget, setRecoveryTarget] = useState<EmailAccount | null>(null);
-  const [recoveryValue, setRecoveryValue] = useState('');
-  const [recoveryError, setRecoveryError] = useState<string | null>(null);
+  const [editTarget, setEditTarget] = useState<EmailAccount | null>(null);
+  const [editDisplayName, setEditDisplayName] = useState('');
+  const [editRecovery, setEditRecovery] = useState('');
+  const [editError, setEditError] = useState<string | null>(null);
 
   const { data: accounts = [], isLoading } = useQuery({
     queryKey: ['accounts', user?.id],
@@ -99,16 +100,18 @@ export default function AccountsPage() {
     onError: (err: Error) => setResetError(err.message),
   });
 
-  const recoveryMutation = useMutation({
-    mutationFn: ({ mailboxId, recoveryEmail }: { mailboxId: string; recoveryEmail: string | null }) =>
-      accountsApi.update(mailboxId, { recoveryEmail }),
+  const editMutation = useMutation({
+    mutationFn: ({ mailboxId, displayName, recoveryEmail }: { mailboxId: string; displayName: string | null; recoveryEmail: string | null }) =>
+      accountsApi.update(mailboxId, { displayName, recoveryEmail }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['accounts'] });
-      setRecoveryTarget(null);
-      setRecoveryValue('');
-      setRecoveryError(null);
+      qc.invalidateQueries({ queryKey: ['own-mailboxes'] });
+      setEditTarget(null);
+      setEditDisplayName('');
+      setEditRecovery('');
+      setEditError(null);
     },
-    onError: (err: Error) => setRecoveryError(err.message),
+    onError: (err: Error) => setEditError(err.message),
   });
 
   const setField = <K extends keyof NewMailboxForm>(k: K, v: NewMailboxForm[K]) =>
@@ -167,9 +170,14 @@ export default function AccountsPage() {
       </div>
       <div className="flex items-center gap-2">
         <button
-          onClick={() => { setRecoveryTarget(acc); setRecoveryValue(acc.recoveryEmail ?? ''); setRecoveryError(null); }}
+          onClick={() => {
+            setEditTarget(acc);
+            setEditDisplayName(acc.name && acc.name !== acc.email ? acc.name : '');
+            setEditRecovery(acc.recoveryEmail ?? '');
+            setEditError(null);
+          }}
           className="p-1.5 text-black/40 hover:text-black rounded transition-colors"
-          title="Edit recovery email"
+          title="Edit display name & recovery email"
         >
           <Pencil size={14} />
         </button>
@@ -402,42 +410,52 @@ export default function AccountsPage() {
         )}
       </div>
 
-      {/* Recovery email dialog */}
-      {recoveryTarget && (
+      {/* Edit dialog: display name + recovery email */}
+      {editTarget && (
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-2xl p-6 max-w-md w-full space-y-4">
             <div className="flex items-center justify-between">
-              <h2 className="text-base font-semibold text-black">Recovery email for {recoveryTarget.email}</h2>
-              <button onClick={() => setRecoveryTarget(null)} className="text-black/30 hover:text-black"><X size={16} /></button>
+              <h2 className="text-base font-semibold text-black">Edit {editTarget.email}</h2>
+              <button onClick={() => setEditTarget(null)} className="text-black/30 hover:text-black"><X size={16} /></button>
             </div>
-            <p className="text-xs text-black/50">
-              When the user forgets their password, the reset link is sent here. Leave blank to disable self-service recovery.
-            </p>
+            <div>
+              <label className="text-[10px] font-medium text-black/50 uppercase tracking-wide mb-1 block">Display name</label>
+              <input
+                type="text"
+                value={editDisplayName}
+                onChange={(e) => setEditDisplayName(e.target.value)}
+                placeholder='e.g. "Petbook Support"'
+                className="w-full text-sm border border-black/20 rounded-lg px-3 py-2 outline-none focus:border-black bg-white"
+                autoFocus
+              />
+              <p className="text-[10px] text-black/40 mt-1">Shown next to the address in recipient inboxes (Gmail, Outlook, etc.).</p>
+            </div>
             <div>
               <label className="text-[10px] font-medium text-black/50 uppercase tracking-wide mb-1 block">Recovery email</label>
               <input
                 type="email"
-                value={recoveryValue}
-                onChange={(e) => setRecoveryValue(e.target.value)}
+                value={editRecovery}
+                onChange={(e) => setEditRecovery(e.target.value)}
                 placeholder="user-personal@gmail.com"
                 className="w-full text-sm border border-black/20 rounded-lg px-3 py-2 outline-none focus:border-black bg-white"
-                autoFocus
               />
+              <p className="text-[10px] text-black/40 mt-1">Where the password reset link is sent. Leave blank to disable self-service recovery.</p>
             </div>
-            {recoveryError && <p className="text-xs text-red-600">{recoveryError}</p>}
+            {editError && <p className="text-xs text-red-600">{editError}</p>}
             <div className="flex gap-2 justify-end">
-              <button onClick={() => setRecoveryTarget(null)} className="text-xs text-black/50 px-3 py-2 hover:text-black">
+              <button onClick={() => setEditTarget(null)} className="text-xs text-black/50 px-3 py-2 hover:text-black">
                 Cancel
               </button>
               <button
-                onClick={() => recoveryMutation.mutate({
-                  mailboxId: recoveryTarget.id,
-                  recoveryEmail: recoveryValue.trim() || null,
+                onClick={() => editMutation.mutate({
+                  mailboxId: editTarget.id,
+                  displayName: editDisplayName.trim() || null,
+                  recoveryEmail: editRecovery.trim() || null,
                 })}
-                disabled={recoveryMutation.isPending}
+                disabled={editMutation.isPending}
                 className="bg-black text-white text-xs px-4 py-2 rounded-lg hover:bg-black/80 disabled:opacity-50 transition-colors"
               >
-                {recoveryMutation.isPending ? 'Saving…' : 'Save'}
+                {editMutation.isPending ? 'Saving…' : 'Save'}
               </button>
             </div>
           </div>

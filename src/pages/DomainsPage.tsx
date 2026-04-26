@@ -51,17 +51,20 @@ export default function DomainsPage() {
   });
 
   const brandingMutation = useMutation({
-    mutationFn: (args: { domainId: string; file?: File; clear?: boolean }) =>
+    mutationFn: (args: { domainId: string; kind?: 'logo' | 'bimi'; file?: File; clear?: boolean }) =>
       domainsApi.updateBranding(args),
     onSuccess: (_, args) => {
       qc.invalidateQueries({ queryKey: ['domains'] });
+      const isBimi = args.kind === 'bimi';
       toast({
-        title: args.clear ? 'Logo removed' : 'Logo uploaded',
-        description: args.clear ? 'Outbound mail will no longer include the brand logo.' : 'New mail from this domain will include the logo footer.',
+        title: args.clear ? (isBimi ? 'BIMI logo removed' : 'Footer logo removed') : (isBimi ? 'BIMI logo uploaded' : 'Footer logo uploaded'),
+        description: args.clear
+          ? (isBimi ? 'Sender avatar (BIMI) is no longer published.' : 'Outbound mail will no longer include the brand logo.')
+          : (isBimi ? 'Now add the BIMI DNS record below to publish your sender avatar.' : 'New mail from this domain will include the logo footer.'),
       });
     },
     onError: (err: Error) => {
-      toast({ title: 'Logo update failed', description: err.message, variant: 'destructive' });
+      toast({ title: 'Branding update failed', description: err.message, variant: 'destructive' });
     },
   });
 
@@ -77,14 +80,25 @@ export default function DomainsPage() {
     return <Clock size={14} className="text-white/40" />;
   };
 
-  const dnsRecords = (d: Domain) => [
-    { type: 'MX',   name: '@',                  value: '10 route1.mx.cloudflare.net',                                    note: 'Inbound via Cloudflare Email Routing' },
-    { type: 'MX',   name: '@',                  value: '10 route2.mx.cloudflare.net',                                    note: 'Inbound via Cloudflare Email Routing' },
-    { type: 'MX',   name: '@',                  value: '10 route3.mx.cloudflare.net',                                    note: 'Inbound via Cloudflare Email Routing' },
-    { type: 'TXT',  name: '@',                  value: 'v=spf1 include:amazonses.com ~all',                              note: 'Outbound SPF (Resend uses AWS SES under the hood)' },
-    { type: 'CNAME',name: `resend._domainkey`,  value: 'resend.com',                                                     note: 'DKIM for outbound (Resend will show the exact target when you verify the domain on resend.com)' },
-    { type: 'TXT',  name: '_dmarc',             value: `v=DMARC1; p=none; rua=mailto:dmarc@${d.name}`,                   note: 'Optional but recommended' },
-  ];
+  const dnsRecords = (d: Domain) => {
+    const base = [
+      { type: 'MX',   name: '@',                  value: '10 route1.mx.cloudflare.net',                                    note: 'Inbound via Cloudflare Email Routing' },
+      { type: 'MX',   name: '@',                  value: '10 route2.mx.cloudflare.net',                                    note: 'Inbound via Cloudflare Email Routing' },
+      { type: 'MX',   name: '@',                  value: '10 route3.mx.cloudflare.net',                                    note: 'Inbound via Cloudflare Email Routing' },
+      { type: 'TXT',  name: '@',                  value: 'v=spf1 include:amazonses.com ~all',                              note: 'Outbound SPF (Resend uses AWS SES under the hood)' },
+      { type: 'CNAME',name: `resend._domainkey`,  value: 'resend.com',                                                     note: 'DKIM for outbound (Resend will show the exact target when you verify the domain on resend.com)' },
+      { type: 'TXT',  name: '_dmarc',             value: `v=DMARC1; p=none; rua=mailto:dmarc@${d.name}`,                   note: 'Optional but recommended' },
+    ];
+    if (d.brandBimiUrl) {
+      base.push({
+        type: 'TXT',
+        name: 'default._bimi',
+        value: `v=BIMI1; l=${d.brandBimiUrl}`,
+        note: 'BIMI — Apple Mail / Yahoo show your logo as the sender avatar (Gmail needs a paid VMC certificate)',
+      });
+    }
+    return base;
+  };
 
   return (
     <div className="flex-1 flex flex-col min-h-0 bg-white">
@@ -190,8 +204,8 @@ export default function DomainsPage() {
                 <BrandingSection
                   domain={domain}
                   isPending={brandingMutation.isPending}
-                  onUpload={(file) => brandingMutation.mutate({ domainId: domain.id, file })}
-                  onClear={() => brandingMutation.mutate({ domainId: domain.id, clear: true })}
+                  onUpload={(kind, file) => brandingMutation.mutate({ domainId: domain.id, kind, file })}
+                  onClear={(kind) => brandingMutation.mutate({ domainId: domain.id, kind, clear: true })}
                 />
                 <div>
                   <p className="text-xs font-medium text-black/60 mb-2">DNS Records — Add these in your Cloudflare DNS dashboard</p>
@@ -249,61 +263,102 @@ export default function DomainsPage() {
 interface BrandingSectionProps {
   domain: Domain;
   isPending: boolean;
+  onUpload: (kind: 'logo' | 'bimi', file: File) => void;
+  onClear: (kind: 'logo' | 'bimi') => void;
+}
+
+function BrandingSection({ domain, isPending, onUpload, onClear }: BrandingSectionProps) {
+  return (
+    <div>
+      <p className="text-xs font-medium text-black/60 mb-2 flex items-center gap-1.5">
+        <ImageIcon size={12} /> Branding
+      </p>
+      <div className="space-y-2">
+        <BrandingRow
+          label="Footer logo"
+          help="Appended to the bottom of every outbound email from this domain."
+          accept="image/png,image/jpeg,image/webp,image/svg+xml"
+          fileTypeHint="PNG, JPG, WEBP or SVG · max 1 MB · ~200×60"
+          imageUrl={domain.brandLogoUrl}
+          isPending={isPending}
+          onUpload={(file) => onUpload('logo', file)}
+          onClear={() => onClear('logo')}
+        />
+        <BrandingRow
+          label="Sender avatar (BIMI)"
+          help={
+            domain.brandBimiUrl
+              ? 'SVG uploaded. Add the BIMI DNS record below so Apple Mail / Yahoo show your logo as the sender avatar.'
+              : 'SVG only (square 1:1). Free; works in Apple Mail / Yahoo / AOL. Gmail requires a paid VMC certificate.'
+          }
+          accept="image/svg+xml"
+          fileTypeHint="SVG only · BIMI Tiny PS profile · max 1 MB"
+          imageUrl={domain.brandBimiUrl}
+          isPending={isPending}
+          onUpload={(file) => onUpload('bimi', file)}
+          onClear={() => onClear('bimi')}
+        />
+      </div>
+    </div>
+  );
+}
+
+interface BrandingRowProps {
+  label: string;
+  help: string;
+  accept: string;
+  fileTypeHint: string;
+  imageUrl: string | null;
+  isPending: boolean;
   onUpload: (file: File) => void;
   onClear: () => void;
 }
 
-function BrandingSection({ domain, isPending, onUpload, onClear }: BrandingSectionProps) {
+function BrandingRow({ label, help, accept, fileTypeHint, imageUrl, isPending, onUpload, onClear }: BrandingRowProps) {
   const fileRef = useRef<HTMLInputElement>(null);
   return (
-    <div>
-      <p className="text-xs font-medium text-black/60 mb-2 flex items-center gap-1.5">
-        <ImageIcon size={12} /> Brand logo
-      </p>
-      <div className="bg-white border border-black/10 rounded-lg p-3">
-        <div className="flex items-center gap-3">
-          <div className="w-20 h-12 bg-black/[0.03] border border-black/10 rounded flex items-center justify-center overflow-hidden shrink-0">
-            {domain.brandLogoUrl ? (
-              <img src={domain.brandLogoUrl} alt={`${domain.name} logo`} className="max-w-full max-h-full object-contain" />
-            ) : (
-              <ImageIcon size={16} className="text-black/20" />
-            )}
-          </div>
-          <div className="flex-1 min-w-0">
-            <p className="text-xs text-black/70">
-              {domain.brandLogoUrl ? 'Appended to every outgoing email from this domain.' : 'No logo set. Upload one to brand outgoing mail.'}
-            </p>
-            <p className="text-[10px] text-black/40 mt-0.5">PNG, JPG, WEBP or SVG · max 1 MB</p>
-          </div>
-          <input
-            ref={fileRef}
-            type="file"
-            accept="image/png,image/jpeg,image/webp,image/svg+xml"
-            className="hidden"
-            onChange={(e) => {
-              const f = e.target.files?.[0];
-              if (f) onUpload(f);
-              if (fileRef.current) fileRef.current.value = '';
-            }}
-          />
-          <button
-            onClick={() => fileRef.current?.click()}
-            disabled={isPending}
-            className="text-xs flex items-center gap-1 bg-black text-white px-3 py-1.5 rounded-lg hover:bg-black/80 disabled:opacity-50 transition-colors"
-          >
-            <Upload size={12} />
-            {isPending ? 'Uploading…' : (domain.brandLogoUrl ? 'Replace' : 'Upload')}
-          </button>
-          {domain.brandLogoUrl && (
-            <button
-              onClick={() => onClear()}
-              disabled={isPending}
-              className="text-xs text-black/50 px-2 hover:text-red-600 transition-colors"
-            >
-              Remove
-            </button>
+    <div className="bg-white border border-black/10 rounded-lg p-3">
+      <div className="flex items-center gap-3">
+        <div className="w-20 h-12 bg-black/[0.03] border border-black/10 rounded flex items-center justify-center overflow-hidden shrink-0">
+          {imageUrl ? (
+            <img src={imageUrl} alt="" className="max-w-full max-h-full object-contain" />
+          ) : (
+            <ImageIcon size={16} className="text-black/20" />
           )}
         </div>
+        <div className="flex-1 min-w-0">
+          <p className="text-xs font-medium text-black/80">{label}</p>
+          <p className="text-xs text-black/55 leading-snug mt-0.5">{help}</p>
+          <p className="text-[10px] text-black/40 mt-0.5">{fileTypeHint}</p>
+        </div>
+        <input
+          ref={fileRef}
+          type="file"
+          accept={accept}
+          className="hidden"
+          onChange={(e) => {
+            const f = e.target.files?.[0];
+            if (f) onUpload(f);
+            if (fileRef.current) fileRef.current.value = '';
+          }}
+        />
+        <button
+          onClick={() => fileRef.current?.click()}
+          disabled={isPending}
+          className="text-xs flex items-center gap-1 bg-black text-white px-3 py-1.5 rounded-lg hover:bg-black/80 disabled:opacity-50 transition-colors"
+        >
+          <Upload size={12} />
+          {isPending ? 'Uploading…' : (imageUrl ? 'Replace' : 'Upload')}
+        </button>
+        {imageUrl && (
+          <button
+            onClick={onClear}
+            disabled={isPending}
+            className="text-xs text-black/50 px-2 hover:text-red-600 transition-colors"
+          >
+            Remove
+          </button>
+        )}
       </div>
     </div>
   );
