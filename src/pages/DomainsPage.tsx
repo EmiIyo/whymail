@@ -100,9 +100,9 @@ export default function DomainsPage() {
   ];
 
   return (
-    <div className="h-full flex flex-col min-h-0 bg-white">
+    <div className="h-full overflow-y-auto bg-white">
       {/* Header */}
-      <div className="flex items-center justify-between px-6 py-4 border-b border-black/10">
+      <div className="sticky top-0 z-10 flex items-center justify-between px-6 py-4 border-b border-black/10 bg-white">
         <div>
           <h1 className="text-base font-semibold text-black">Domains</h1>
           <p className="text-xs text-black/40 mt-0.5">Connect custom domains to send and receive email</p>
@@ -141,7 +141,7 @@ export default function DomainsPage() {
       )}
 
       {/* Domain list — extra bottom padding so the last expanded card clears the mobile tab bar */}
-      <div className="flex-1 overflow-y-auto px-6 py-4 space-y-3 pb-24 lg:pb-4">
+      <div className="px-6 py-4 space-y-3 pb-24 lg:pb-6">
         {isLoading && (
           <div className="flex items-center justify-center py-16">
             <div className="w-5 h-5 border-2 border-black/20 border-t-black rounded-full animate-spin" />

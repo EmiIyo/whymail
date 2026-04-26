@@ -212,8 +212,8 @@ export default function AccountsPage() {
   );
 
   return (
-    <div className="h-full flex flex-col min-h-0 bg-white">
-      <div className="flex items-center justify-between px-6 py-4 border-b border-black/10">
+    <div className="h-full overflow-y-auto bg-white">
+      <div className="sticky top-0 z-10 flex items-center justify-between px-6 py-4 border-b border-black/10 bg-white">
         <div>
           <h1 className="text-base font-semibold text-black">Mailboxes</h1>
           <p className="text-xs text-black/40 mt-0.5">Create addresses on your own domains and manage who can use them</p>
@@ -368,7 +368,7 @@ export default function AccountsPage() {
         </div>
       )}
 
-      <div className="flex-1 overflow-y-auto px-6 py-4 space-y-6">
+      <div className="px-6 py-4 space-y-6 pb-24 lg:pb-6">
         {isLoading && (
           <div className="flex items-center justify-center py-16">
             <div className="w-5 h-5 border-2 border-black/20 border-t-black rounded-full animate-spin" />

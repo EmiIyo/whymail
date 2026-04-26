@@ -164,44 +164,25 @@ export const domainsApi = {
 // ─── Domain Admins (co-admin team) ────────────────────────────
 export const domainAdminsApi = {
   async list(domainId: string): Promise<DomainAdmin[]> {
-    // Fetch the domain row (for the owner) plus the co-admin list. We resolve
-    // emails by joining via auth.users through a helper view... but since
-    // auth schema isn't directly queryable from the client, we expose the
-    // owner's email via the existing domains row (set on insert) and look up
-    // co-admin emails using profiles.
+    // owner_email and user_email are denormalized snapshots populated by
+    // database triggers, so we don't need a privileged auth.users lookup.
     const { data: domain } = await supabase
       .from('domains')
-      .select('id, user_id')
+      .select('id, user_id, owner_email')
       .eq('id', domainId)
       .maybeSingle();
     if (!domain) return [];
 
     const { data: adminsRows } = await supabase
       .from('domain_admins')
-      .select('domain_id, user_id, added_at')
+      .select('domain_id, user_id, user_email, added_at')
       .eq('domain_id', domainId);
-
-    // Resolve emails via profiles (best-effort) plus the current user's own email if listed.
-    const userIds = [
-      domain.user_id as string,
-      ...((adminsRows ?? []).map((r) => r.user_id as string)),
-    ].filter((v, i, arr) => arr.indexOf(v) === i);
-
-    const { data: profiles } = await supabase
-      .from('profiles')
-      .select('id, full_name')
-      .in('id', userIds);
-
-    // We can't directly read auth.users from client, so we surface the userId
-    // and rely on the server-side lookup for invites. For display, use full_name
-    // when available, else show the userId truncated.
-    const profileById = new Map((profiles ?? []).map((p) => [p.id as string, p as { id: string; full_name: string | null }]));
 
     const result: DomainAdmin[] = [];
     result.push({
       domainId: domainId,
       userId: domain.user_id as string,
-      email: profileById.get(domain.user_id as string)?.full_name ?? '',
+      email: (domain.owner_email as string | null) ?? '',
       isOwner: true,
       addedAt: null,
     });
@@ -209,7 +190,7 @@ export const domainAdminsApi = {
       result.push({
         domainId: a.domain_id as string,
         userId: a.user_id as string,
-        email: profileById.get(a.user_id as string)?.full_name ?? '',
+        email: (a.user_email as string | null) ?? '',
         isOwner: false,
         addedAt: a.added_at as string,
       });
