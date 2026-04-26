@@ -45,7 +45,7 @@ export default function InboxPage() {
 
   if (accounts.length === 0 && !isLoading) {
     return (
-      <div className="flex-1 flex flex-col items-center justify-center text-center gap-3 p-6">
+      <div className="h-full flex flex-col items-center justify-center text-center gap-3 p-6">
         <div className="w-14 h-14 rounded-full bg-muted flex items-center justify-center">
           <InboxIcon className="w-6 h-6 text-muted-foreground" />
         </div>

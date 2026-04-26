@@ -105,7 +105,7 @@ export default function SettingsPage() {
   });
 
   return (
-    <div className="flex-1 overflow-y-auto bg-white">
+    <div className="h-full overflow-y-auto bg-white">
       <div className="max-w-2xl mx-auto px-6 py-6">
         <h1 className="text-base font-semibold text-black mb-6">Settings</h1>
 

@@ -276,9 +276,10 @@ export function Layout({ children }: LayoutProps) {
           </Avatar>
         </header>
 
-        {/* Page content — flex container so child pages with flex-1 stretch correctly.
-            Mobile bottom padding clears the tab bar (~56px + safe-area). */}
-        <main className="flex-1 flex min-h-0 overflow-hidden pb-[calc(56px+env(safe-area-inset-bottom))] lg:pb-0">
+        {/* Page content. Pages declare their own height with `h-full` and use
+            internal `flex-1 overflow-y-auto` to scroll. Mobile bottom padding
+            clears the tab bar (~56px + safe-area). */}
+        <main className="flex-1 min-h-0 overflow-hidden pb-[calc(56px+env(safe-area-inset-bottom))] lg:pb-0">
           {children}
         </main>
       </div>
