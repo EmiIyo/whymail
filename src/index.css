@@ -220,3 +220,28 @@
     @apply bg-muted-foreground/20 rounded-full hover:bg-muted-foreground/40;
   }
 }
+
+/*
+  Mobile portrait lock (browser mode).
+
+  PWA standalone honors manifest "orientation": "portrait" automatically.
+  In plain Safari/Chrome browsers we can't actually lock orientation, so when
+  the device tips to landscape we counter-rotate the page back to portrait
+  via CSS. Visually the user sees the same upright UI; physically their
+  phone is sideways. Touch coordinates are auto-remapped by the browser
+  because the DOM itself is rotated. Desktop (>=1024px) is exempt.
+*/
+@media (orientation: landscape) and (max-width: 1023px) {
+  html {
+    transform: rotate(-90deg);
+    transform-origin: left top;
+    position: absolute;
+    top: 100%;
+    left: 0;
+    width: 100vh;
+    height: 100vw;
+    overflow-x: hidden;
+    overflow-y: auto;
+  }
+}
+
