@@ -42,7 +42,7 @@ export default function LoginPage() {
     // request-password-reset edge function. The endpoint always returns ok
     // regardless of whether the address exists, so we always show the same
     // message (no enumeration).
-    const redirectTo = `${window.location.origin}${window.location.pathname}#${ROUTE_PATHS.RESET_PASSWORD}`;
+    const redirectTo = `${window.location.origin}${ROUTE_PATHS.RESET_PASSWORD}`;
     try {
       await authApi.requestPasswordReset(target, redirectTo);
       setResetSent(true);

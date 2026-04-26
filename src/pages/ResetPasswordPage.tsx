@@ -24,19 +24,8 @@ export default function ResetPasswordPage() {
   const [done, setDone] = useState(false);
 
   useEffect(() => {
-    // HashRouter strips the query string in some setups; check both URL and
-    // useSearchParams to be safe.
     const fromQuery = searchParams.get('token');
-    if (fromQuery) {
-      setToken(fromQuery);
-      return;
-    }
-    const hashSearch = window.location.hash.split('?')[1];
-    if (hashSearch) {
-      const params = new URLSearchParams(hashSearch);
-      const t = params.get('token');
-      if (t) setToken(t);
-    }
+    if (fromQuery) setToken(fromQuery);
   }, [searchParams]);
 
   const handleSubmit = async (e: React.FormEvent) => {

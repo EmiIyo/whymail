@@ -2,7 +2,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider, useQuery } from "@tanstack/react-query";
-import { HashRouter, Routes, Route, Navigate, useLocation } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate, useLocation } from "react-router-dom";
 import { Layout } from "@/components/Layout";
 import { ROUTE_PATHS } from "@/lib/index";
 import { AuthProvider, useAuth } from "@/hooks/useAuth";
@@ -63,7 +63,7 @@ const App = () => (
     <TooltipProvider>
       <Toaster />
       <Sonner />
-      <HashRouter>
+      <BrowserRouter>
         <AuthProvider>
         <Routes>
           <Route path={ROUTE_PATHS.LOGIN} element={<LoginPage />} />
@@ -82,7 +82,7 @@ const App = () => (
           <Route path="*" element={<NotFound />} />
         </Routes>
         </AuthProvider>
-      </HashRouter>
+      </BrowserRouter>
     </TooltipProvider>
   </QueryClientProvider>
 );
