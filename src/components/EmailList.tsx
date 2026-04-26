@@ -51,20 +51,20 @@ export function EmailList({ emails, title, emptyMessage = 'No emails here.', onS
               key={email.id}
               variants={staggerItem}
               onClick={() => handleSelect(email)}
-              className={`flex items-start gap-3 px-4 py-3 cursor-pointer transition-colors hover:bg-accent/50 overflow-hidden w-full ${
+              className={`flex items-start gap-3 px-4 py-3.5 cursor-pointer transition-colors active:bg-accent hover:bg-accent/50 overflow-hidden w-full ${
                 selectedEmailId === email.id ? 'bg-accent border-l-2 border-l-primary' : ''
               } ${!email.read ? 'bg-primary/3' : ''}`}
             >
-              {/* Avatar */}
-              <Avatar className="w-8 h-8 shrink-0 mt-0.5">
-                <AvatarFallback className={`text-xs font-semibold ${!email.read ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground'}`}>
+              {/* Avatar — bigger on mobile for touch friendliness */}
+              <Avatar className="w-10 h-10 lg:w-8 lg:h-8 shrink-0 mt-0.5">
+                <AvatarFallback className={`text-sm lg:text-xs font-semibold ${!email.read ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground'}`}>
                   {getInitials(email.fromName)}
                 </AvatarFallback>
               </Avatar>
 
               <div className="flex-1 min-w-0 overflow-hidden">
                 <div className="flex items-center justify-between gap-2 mb-0.5 overflow-hidden">
-                  <span className={`text-sm truncate min-w-0 flex-1 ${!email.read ? 'font-semibold text-foreground' : 'font-medium text-foreground/80'}`}>
+                  <span className={`text-[15px] lg:text-sm truncate min-w-0 flex-1 ${!email.read ? 'font-semibold text-foreground' : 'font-medium text-foreground/80'}`}>
                     {email.fromName}
                   </span>
                   <div className="flex items-center gap-1.5 shrink-0 ml-1">
@@ -72,23 +72,24 @@ export function EmailList({ emails, title, emptyMessage = 'No emails here.', onS
                     <span className="text-xs text-muted-foreground whitespace-nowrap">{formatEmailDate(email.date)}</span>
                   </div>
                 </div>
-                <p className={`text-sm truncate mb-0.5 w-full ${!email.read ? 'font-medium text-foreground' : 'text-foreground/75'}`}>
+                <p className={`text-[14px] lg:text-sm truncate mb-0.5 w-full ${!email.read ? 'font-medium text-foreground' : 'text-foreground/75'}`}>
                   {email.subject}
                 </p>
-                <p className="text-xs text-muted-foreground truncate w-full">{email.bodyText.slice(0, 90)}</p>
+                <p className="text-[13px] lg:text-xs text-muted-foreground line-clamp-1 w-full">{email.bodyText.slice(0, 120)}</p>
               </div>
 
-              {/* Star */}
+              {/* Star — larger touch target on mobile */}
               <button
                 onClick={e => { e.stopPropagation(); void toggleStar(email.id, email.starred); }}
-                className="shrink-0 mt-0.5 p-0.5 rounded hover:text-foreground transition-colors"
+                className="shrink-0 -m-2 p-2 rounded-full hover:text-foreground transition-colors"
+                aria-label={email.starred ? 'Unstar' : 'Star'}
               >
-                <Star className={`w-3.5 h-3.5 ${email.starred ? 'fill-foreground text-foreground' : 'text-muted-foreground/30'}`} />
+                <Star className={`w-4 h-4 lg:w-3.5 lg:h-3.5 ${email.starred ? 'fill-foreground text-foreground' : 'text-muted-foreground/30'}`} />
               </button>
 
               {/* Unread dot */}
               {!email.read && (
-                <div className="w-2 h-2 rounded-full bg-primary shrink-0 mt-1.5" />
+                <div className="w-2 h-2 rounded-full bg-primary shrink-0 mt-2" />
               )}
             </motion.div>
           ))}

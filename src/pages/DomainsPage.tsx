@@ -1,6 +1,6 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Plus, Globe, CheckCircle, XCircle, Clock, Trash2, Copy, ChevronDown, ChevronUp } from 'lucide-react';
+import { Plus, Globe, CheckCircle, XCircle, Clock, Trash2, Copy, ChevronDown, ChevronUp, Image as ImageIcon, Upload } from 'lucide-react';
 import { domainsApi, type DomainCheckResult, type DomainVerifyResponse } from '@/api/index';
 import { useAuth } from '@/hooks/useAuth';
 import { useToast } from '@/hooks/use-toast';
@@ -47,6 +47,21 @@ export default function DomainsPage() {
     },
     onError: (err: Error) => {
       toast({ title: 'Verify failed', description: err.message, variant: 'destructive' });
+    },
+  });
+
+  const brandingMutation = useMutation({
+    mutationFn: (args: { domainId: string; file?: File; clear?: boolean }) =>
+      domainsApi.updateBranding(args),
+    onSuccess: (_, args) => {
+      qc.invalidateQueries({ queryKey: ['domains'] });
+      toast({
+        title: args.clear ? 'Logo removed' : 'Logo uploaded',
+        description: args.clear ? 'Outbound mail will no longer include the brand logo.' : 'New mail from this domain will include the logo footer.',
+      });
+    },
+    onError: (err: Error) => {
+      toast({ title: 'Logo update failed', description: err.message, variant: 'destructive' });
     },
   });
 
@@ -172,6 +187,12 @@ export default function DomainsPage() {
             {/* DNS records */}
             {expanded === domain.id && (
               <div className="border-t border-black/5 px-4 py-3 bg-black/[0.02] space-y-4">
+                <BrandingSection
+                  domain={domain}
+                  isPending={brandingMutation.isPending}
+                  onUpload={(file) => brandingMutation.mutate({ domainId: domain.id, file })}
+                  onClear={() => brandingMutation.mutate({ domainId: domain.id, clear: true })}
+                />
                 <div>
                   <p className="text-xs font-medium text-black/60 mb-2">DNS Records — Add these in your Cloudflare DNS dashboard</p>
                   <div className="space-y-2">
@@ -220,6 +241,69 @@ export default function DomainsPage() {
             )}
           </div>
         ))}
+      </div>
+    </div>
+  );
+}
+
+interface BrandingSectionProps {
+  domain: Domain;
+  isPending: boolean;
+  onUpload: (file: File) => void;
+  onClear: () => void;
+}
+
+function BrandingSection({ domain, isPending, onUpload, onClear }: BrandingSectionProps) {
+  const fileRef = useRef<HTMLInputElement>(null);
+  return (
+    <div>
+      <p className="text-xs font-medium text-black/60 mb-2 flex items-center gap-1.5">
+        <ImageIcon size={12} /> Brand logo
+      </p>
+      <div className="bg-white border border-black/10 rounded-lg p-3">
+        <div className="flex items-center gap-3">
+          <div className="w-20 h-12 bg-black/[0.03] border border-black/10 rounded flex items-center justify-center overflow-hidden shrink-0">
+            {domain.brandLogoUrl ? (
+              <img src={domain.brandLogoUrl} alt={`${domain.name} logo`} className="max-w-full max-h-full object-contain" />
+            ) : (
+              <ImageIcon size={16} className="text-black/20" />
+            )}
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-xs text-black/70">
+              {domain.brandLogoUrl ? 'Appended to every outgoing email from this domain.' : 'No logo set. Upload one to brand outgoing mail.'}
+            </p>
+            <p className="text-[10px] text-black/40 mt-0.5">PNG, JPG, WEBP or SVG · max 1 MB</p>
+          </div>
+          <input
+            ref={fileRef}
+            type="file"
+            accept="image/png,image/jpeg,image/webp,image/svg+xml"
+            className="hidden"
+            onChange={(e) => {
+              const f = e.target.files?.[0];
+              if (f) onUpload(f);
+              if (fileRef.current) fileRef.current.value = '';
+            }}
+          />
+          <button
+            onClick={() => fileRef.current?.click()}
+            disabled={isPending}
+            className="text-xs flex items-center gap-1 bg-black text-white px-3 py-1.5 rounded-lg hover:bg-black/80 disabled:opacity-50 transition-colors"
+          >
+            <Upload size={12} />
+            {isPending ? 'Uploading…' : (domain.brandLogoUrl ? 'Replace' : 'Upload')}
+          </button>
+          {domain.brandLogoUrl && (
+            <button
+              onClick={() => onClear()}
+              disabled={isPending}
+              className="text-xs text-black/50 px-2 hover:text-red-600 transition-colors"
+            >
+              Remove
+            </button>
+          )}
+        </div>
       </div>
     </div>
   );

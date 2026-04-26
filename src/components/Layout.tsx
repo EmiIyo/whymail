@@ -4,7 +4,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   Inbox, Send, FileText, AlertTriangle, Trash2, Search,
   Globe, Users, Settings, PenSquare, ChevronDown,
-  Menu, X, LogOut, Bell, MailsIcon
+  X, LogOut, Bell, MailsIcon
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
@@ -19,9 +19,12 @@ import {
 import { useEmailStore } from '@/hooks/useEmailStore';
 import { useAccounts } from '@/hooks/useAccounts';
 import { useUnreadCounts } from '@/hooks/useUnreadCounts';
+import { useIsDesktop } from '@/hooks/useMediaQuery';
 import { ROUTE_PATHS, getInitials } from '@/lib/index';
 import { useAuth } from '@/hooks/useAuth';
 import { ComposeModal } from '@/components/ComposeModal';
+import { MobileTabBar } from '@/components/MobileTabBar';
+import { MobileFAB } from '@/components/MobileFAB';
 import { springPresets } from '@/lib/motion';
 
 import type { Folder } from '@/lib/index';
@@ -54,8 +57,10 @@ export function Layout({ children }: LayoutProps) {
   const { accounts, activeAccountId } = useAccounts();
   const unreadCounts = useUnreadCounts(activeAccountId || null);
   const { signOut } = useAuth();
+  const isDesktop = useIsDesktop();
   const [searchInput, setSearchInput] = useState('');
 
+  const showSidebar = isDesktop || sidebarOpen;
   const activeAccount = accounts.find(a => a.id === activeAccountId);
 
   const handleSearch = (e: React.FormEvent) => {
@@ -69,7 +74,7 @@ export function Layout({ children }: LayoutProps) {
     <div className="flex h-screen bg-background overflow-hidden">
       {/* Mobile overlay */}
       <AnimatePresence>
-        {sidebarOpen && (
+        {sidebarOpen && !isDesktop && (
           <motion.div
             className="fixed inset-0 bg-black/50 z-20 lg:hidden"
             initial={{ opacity: 0 }}
@@ -81,21 +86,23 @@ export function Layout({ children }: LayoutProps) {
       </AnimatePresence>
 
       {/* ── Sidebar ─────────────────────────────────────────────── */}
+      {/* On large screens the sidebar is always visible at 288px wide.
+          On mobile it slides in/out as a drawer triggered by the "More" tab. */}
       <motion.aside
         className="fixed lg:relative z-30 flex flex-col h-full bg-sidebar text-sidebar-foreground border-r border-sidebar-border shrink-0 overflow-hidden"
         initial={false}
         animate={{
-          x: sidebarOpen ? 0 : -288,
-          width: sidebarOpen ? 288 : 0,
+          x: showSidebar ? 0 : -288,
+          width: showSidebar ? 288 : 0,
         }}
         transition={springPresets.gentle}
         style={{ willChange: 'transform, width' }}
       >
         {/* Brand */}
         <div className="flex items-center justify-between px-5 py-4 border-b border-sidebar-border min-w-[288px]">
-          <div className="flex items-center gap-2.5">
-            <img src="/icon.png" alt="WhyMail icon" className="w-8 h-8 rounded-lg object-contain" />
-            <img src="/logo.png" alt="WhyMail" className="h-6 object-contain brightness-0 invert" />
+          <div className="flex items-center gap-3">
+            <img src="/icon.png" alt="WhyMail icon" className="w-9 h-9 rounded-lg object-contain shrink-0" />
+            <img src="/logo.png" alt="WhyMail" className="h-8 object-contain brightness-0 invert" />
           </div>
           <button
             className="lg:hidden p-1 rounded hover:bg-sidebar-accent text-sidebar-foreground/60"
@@ -248,15 +255,8 @@ export function Layout({ children }: LayoutProps) {
 
       {/* ── Main Area ────────────────────────────────────────────── */}
       <div className="flex flex-col flex-1 min-w-0 h-full w-full">
-        {/* Top bar */}
-        <header className="flex items-center gap-3 px-4 py-3 border-b border-border bg-background shrink-0">
-          <button
-            className="p-1.5 rounded-md hover:bg-muted transition-colors"
-            onClick={() => setSidebarOpen(!sidebarOpen)}
-          >
-            <Menu className="w-4 h-4 text-muted-foreground" />
-          </button>
-
+        {/* Top bar — hamburger only on desktop (mobile uses the bottom tab bar). */}
+        <header className="hidden lg:flex items-center gap-3 px-4 py-3 border-b border-border bg-background shrink-0">
           <div className="flex-1" />
 
           <Tooltip>
@@ -275,11 +275,15 @@ export function Layout({ children }: LayoutProps) {
           </Avatar>
         </header>
 
-        {/* Page content */}
-        <main className="flex-1 min-h-0 overflow-hidden">
+        {/* Page content — bottom padding on mobile to clear the tab bar (~56px + safe-area). */}
+        <main className="flex-1 min-h-0 overflow-hidden pb-[calc(56px+env(safe-area-inset-bottom))] lg:pb-0">
           {children}
         </main>
       </div>
+
+      {/* Mobile bottom navigation + floating compose button */}
+      <MobileTabBar />
+      <MobileFAB />
 
       {/* Compose Modal */}
       <ComposeModal open={composeOpen} onClose={closeCompose} initialData={composeDraft} />

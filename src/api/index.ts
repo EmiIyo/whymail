@@ -159,6 +159,37 @@ export const domainsApi = {
     if (error) throw error;
     return data as DomainVerifyResponse;
   },
+
+  async updateBranding(payload: {
+    domainId: string;
+    file?: File;            // present => upload new logo
+    clear?: boolean;        // present => remove existing logo
+  }): Promise<{ brandLogoUrl: string | null }> {
+    let body: Record<string, unknown>;
+    if (payload.clear) {
+      body = { domainId: payload.domainId, clear: true };
+    } else if (payload.file) {
+      const buf = await payload.file.arrayBuffer();
+      const bytes = new Uint8Array(buf);
+      // Chunked base64 encode (avoids stack overflow for ~1MB files)
+      const chunkSize = 0x8000;
+      let binary = '';
+      for (let i = 0; i < bytes.length; i += chunkSize) {
+        binary += String.fromCharCode(...bytes.subarray(i, i + chunkSize));
+      }
+      body = {
+        domainId: payload.domainId,
+        logoBase64: btoa(binary),
+        mimeType: payload.file.type,
+      };
+    } else {
+      throw new Error('Provide either file or clear');
+    }
+    const { data, error } = await supabase.functions.invoke('update-domain-branding', { body });
+    if (error) throw new Error(error.message);
+    if (data?.error) throw new Error(data.error);
+    return { brandLogoUrl: data?.domain?.brand_logo_url ?? null };
+  },
 };
 
 // ─── Email Accounts (self-hosted mailboxes) ───────────────────
@@ -399,6 +430,7 @@ function rowToDomain(row: Record<string, unknown>): Domain {
     spfRecord: (row.spf_record as string) ?? '',
     dkimRecord: (row.dkim_record as string) ?? '',
     dmarcRecord: (row.dmarc_record as string) ?? '',
+    brandLogoUrl: (row.brand_logo_url as string | null) ?? null,
     createdAt: row.created_at as string,
     accountCount: Number(count),
   };

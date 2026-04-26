@@ -71,6 +71,7 @@ export interface Domain {
   spfRecord: string;
   dkimRecord: string;
   dmarcRecord: string;
+  brandLogoUrl: string | null;
   createdAt: string;
   accountCount: number;
 }

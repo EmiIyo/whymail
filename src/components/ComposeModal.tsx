@@ -71,13 +71,27 @@ export function ComposeModal({ open, onClose, initialData }: ComposeModalProps) 
   return (
     <AnimatePresence>
       {open && (
-        <motion.div
-          className="fixed bottom-4 right-4 z-50 w-[560px] max-w-[calc(100vw-2rem)] bg-card border border-border rounded-xl shadow-2xl flex flex-col overflow-hidden"
-          initial={{ opacity: 0, y: 40, scale: 0.95 }}
-          animate={{ opacity: 1, y: 0, scale: 1, height: minimized ? 48 : 'auto' }}
-          exit={{ opacity: 0, y: 40, scale: 0.95 }}
-          transition={springPresets.gentle}
-        >
+        <>
+          {/* Mobile backdrop (only below lg). Tapping it closes the sheet. */}
+          <motion.div
+            className="lg:hidden fixed inset-0 bg-black/40 z-40"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            onClick={onClose}
+          />
+
+          <motion.div
+            className="
+              fixed z-50 bg-card border border-border flex flex-col overflow-hidden shadow-2xl
+              inset-x-0 bottom-0 top-12 rounded-t-2xl
+              lg:inset-x-auto lg:top-auto lg:bottom-4 lg:right-4 lg:w-[560px] lg:max-w-[calc(100vw-2rem)] lg:rounded-xl
+            "
+            initial={{ opacity: 0, y: 40, scale: 0.97 }}
+            animate={{ opacity: 1, y: 0, scale: 1, height: minimized ? 48 : undefined }}
+            exit={{ opacity: 0, y: 40, scale: 0.97 }}
+            transition={springPresets.gentle}
+          >
           {/* Header */}
           <div
             className="flex items-center justify-between px-4 py-3 bg-foreground/5 border-b border-border cursor-pointer select-none"
@@ -218,7 +232,8 @@ export function ComposeModal({ open, onClose, initialData }: ComposeModalProps) 
               </div>
             </>
           )}
-        </motion.div>
+          </motion.div>
+        </>
       )}
     </AnimatePresence>
   );

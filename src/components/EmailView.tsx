@@ -1,7 +1,7 @@
 import { motion } from 'framer-motion';
 import {
   Reply, Forward, Trash2, Star, MailOpen, MoreHorizontal,
-  Paperclip, Download, X, AlertTriangle, Archive
+  Paperclip, Download, ChevronLeft, AlertTriangle, Archive
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
@@ -54,17 +54,20 @@ export function EmailView({ email }: EmailViewProps) {
       animate="visible"
     >
       {/* Toolbar */}
-      <div className="flex items-center gap-1 px-4 py-2.5 border-b border-border shrink-0">
-        <Button variant="ghost" size="sm" onClick={() => setSelectedEmail(null)} className="text-muted-foreground">
-          <X className="w-4 h-4" />
+      <div className="flex items-center gap-1 px-2 lg:px-4 py-2.5 border-b border-border shrink-0">
+        <Button variant="ghost" size="sm" onClick={() => setSelectedEmail(null)} className="text-muted-foreground gap-1 px-2">
+          <ChevronLeft className="w-4 h-4" />
+          <span className="hidden sm:inline text-xs">Back</span>
         </Button>
-        <Separator orientation="vertical" className="h-4 mx-1" />
+        <Separator orientation="vertical" className="h-4 mx-1 hidden lg:block" />
 
-        <Button variant="ghost" size="sm" className="gap-1.5 text-muted-foreground" onClick={() => replyTo(email)}>
-          <Reply className="w-3.5 h-3.5" /> Reply
+        <Button variant="ghost" size="sm" className="gap-1.5 text-muted-foreground" onClick={() => replyTo(email)} aria-label="Reply">
+          <Reply className="w-4 h-4 lg:w-3.5 lg:h-3.5" />
+          <span className="hidden lg:inline">Reply</span>
         </Button>
-        <Button variant="ghost" size="sm" className="gap-1.5 text-muted-foreground" onClick={() => forwardEmail(email)}>
-          <Forward className="w-3.5 h-3.5" /> Forward
+        <Button variant="ghost" size="sm" className="gap-1.5 text-muted-foreground" onClick={() => forwardEmail(email)} aria-label="Forward">
+          <Forward className="w-4 h-4 lg:w-3.5 lg:h-3.5" />
+          <span className="hidden lg:inline">Forward</span>
         </Button>
 
         <div className="flex-1" />
@@ -73,11 +76,12 @@ export function EmailView({ email }: EmailViewProps) {
           variant="ghost" size="sm"
           onClick={() => void toggleStar(email.id, email.starred)}
           className={email.starred ? 'text-foreground' : 'text-muted-foreground'}
+          aria-label={email.starred ? 'Unstar' : 'Star'}
         >
-          <Star className={`w-3.5 h-3.5 ${email.starred ? 'fill-foreground' : ''}`} />
+          <Star className={`w-4 h-4 lg:w-3.5 lg:h-3.5 ${email.starred ? 'fill-foreground' : ''}`} />
         </Button>
-        <Button variant="ghost" size="sm" onClick={handleDelete} className="text-muted-foreground hover:text-destructive">
-          <Trash2 className="w-3.5 h-3.5" />
+        <Button variant="ghost" size="sm" onClick={handleDelete} className="text-muted-foreground hover:text-destructive" aria-label="Delete">
+          <Trash2 className="w-4 h-4 lg:w-3.5 lg:h-3.5" />
         </Button>
 
         <DropdownMenu>
@@ -101,7 +105,7 @@ export function EmailView({ email }: EmailViewProps) {
       </div>
 
       <ScrollArea className="flex-1">
-        <div className="max-w-3xl mx-auto px-6 py-6">
+        <div className="max-w-3xl mx-auto px-4 py-5 lg:px-6 lg:py-6">
           {/* Subject */}
           <h1 className="text-xl font-semibold text-foreground mb-5 leading-snug">
             {email.subject || '(no subject)'}

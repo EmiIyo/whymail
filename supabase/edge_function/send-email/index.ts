@@ -61,7 +61,7 @@ Deno.serve(async (req: Request) => {
 
     const accountResult = await admin
       .from('email_accounts')
-      .select('id, email, display_name, enabled')
+      .select('id, email, display_name, enabled, domain_id')
       .eq('id', payload.accountId)
       .eq('owner_user_id', user.id)
       .maybeSingle();
@@ -69,6 +69,17 @@ Deno.serve(async (req: Request) => {
     const account = accountResult.data;
     if (!account) return jsonResponse({ error: 'Mailbox not found' }, 404);
     if (account.enabled === false) return jsonResponse({ error: 'Mailbox is disabled' }, 400);
+
+    // Pull the domain branding (logo URL) so we can append it to the message.
+    let brandLogoUrl: string | null = null;
+    if (account.domain_id) {
+      const { data: domainRow } = await admin
+        .from('domains')
+        .select('brand_logo_url')
+        .eq('id', account.domain_id)
+        .maybeSingle();
+      brandLogoUrl = (domainRow?.brand_logo_url as string | null) ?? null;
+    }
 
     const toList = splitAddresses(payload.to);
     const ccList = splitAddresses(payload.cc);
@@ -100,12 +111,23 @@ Deno.serve(async (req: Request) => {
       : account.email;
 
     const apiKey = await getResendApiKey(admin);
+
+    // Compose the HTML body with the optional brand logo appended.
+    let htmlBody = payload.bodyHtml ?? (payload.body ? payload.body.replace(/\n/g, '<br/>') : undefined);
+    if (brandLogoUrl && htmlBody !== undefined) {
+      const logoBlock = `\n<div style="margin-top:32px;padding-top:16px;border-top:1px solid #e5e7eb;text-align:center;"><img src="${brandLogoUrl}" alt="" style="max-width:200px;max-height:60px;display:inline-block;" /></div>`;
+      htmlBody = `${htmlBody}${logoBlock}`;
+    } else if (brandLogoUrl && htmlBody === undefined) {
+      // Plain-text-only message becomes minimal HTML so we can include the logo.
+      htmlBody = `<div>${(payload.body ?? '').replace(/\n/g, '<br/>')}</div><div style="margin-top:32px;padding-top:16px;border-top:1px solid #e5e7eb;text-align:center;"><img src="${brandLogoUrl}" alt="" style="max-width:200px;max-height:60px;display:inline-block;" /></div>`;
+    }
+
     const resendBody: Record<string, unknown> = {
       from: fromHeader,
       to: toList,
       subject: payload.subject?.trim() || '(no subject)',
       text: payload.body ?? '',
-      html: payload.bodyHtml ?? (payload.body ? payload.body.replace(/\n/g, '<br/>') : undefined),
+      html: htmlBody,
     };
     if (ccList.length) resendBody.cc = ccList;
     if (bccList.length) resendBody.bcc = bccList;

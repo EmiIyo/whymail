@@ -49,8 +49,8 @@ export default function InboxPage() {
         <div className="w-14 h-14 rounded-full bg-muted flex items-center justify-center">
           <InboxIcon className="w-6 h-6 text-muted-foreground" />
         </div>
-        <p className="text-sm font-medium text-foreground">No email account yet</p>
-        <p className="text-xs text-muted-foreground max-w-xs">Add an IMAP/SMTP account on the Accounts page to start sending and receiving mail.</p>
+        <p className="text-sm font-medium text-foreground">No mailbox yet</p>
+        <p className="text-xs text-muted-foreground max-w-xs">Create your first mailbox on the Mailboxes page to start sending and receiving mail.</p>
       </div>
     );
   }
