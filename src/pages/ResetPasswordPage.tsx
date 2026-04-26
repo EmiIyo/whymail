@@ -1,48 +1,60 @@
 import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { Eye, EyeOff, ArrowRight, Lock, AlertCircle, CheckCircle2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { supabase } from '@/lib/supabase';
+import { authApi } from '@/api/index';
 import { ROUTE_PATHS } from '@/lib/index';
 import { fadeInUp } from '@/lib/motion';
 
-// This page handles the second half of the Supabase password-reset flow.
-// The recovery email link lands users here with a session token that lets
-// them call `supabase.auth.updateUser({ password })` without reauth.
+// Token-based reset flow. The recovery email link contains ?token=...; we
+// pass it together with the chosen new password to confirm-password-reset
+// which validates the token, sets the new password, and burns the token.
 export default function ResetPasswordPage() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const [token, setToken] = useState<string>('');
   const [password, setPassword] = useState('');
   const [confirm, setConfirm] = useState('');
   const [showPass, setShowPass] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [done, setDone] = useState(false);
-  const [canReset, setCanReset] = useState(false);
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      if (session) setCanReset(true);
-    });
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
-      if (event === 'PASSWORD_RECOVERY' || event === 'SIGNED_IN') setCanReset(true);
-    });
-    return () => subscription.unsubscribe();
-  }, []);
+    // HashRouter strips the query string in some setups; check both URL and
+    // useSearchParams to be safe.
+    const fromQuery = searchParams.get('token');
+    if (fromQuery) {
+      setToken(fromQuery);
+      return;
+    }
+    const hashSearch = window.location.hash.split('?')[1];
+    if (hashSearch) {
+      const params = new URLSearchParams(hashSearch);
+      const t = params.get('token');
+      if (t) setToken(t);
+    }
+  }, [searchParams]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
+    if (!token) { setError('Reset token is missing from the link.'); return; }
     if (password.length < 8) { setError('Password must be at least 8 characters.'); return; }
     if (password !== confirm) { setError("Passwords don't match."); return; }
     setLoading(true);
-    const { error: err } = await supabase.auth.updateUser({ password });
-    setLoading(false);
-    if (err) { setError(err.message); return; }
-    setDone(true);
-    setTimeout(() => navigate(ROUTE_PATHS.LOGIN), 2000);
+    try {
+      await authApi.confirmPasswordReset(token, password);
+      setDone(true);
+      setTimeout(() => navigate(ROUTE_PATHS.LOGIN), 2000);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to reset password');
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -54,7 +66,7 @@ export default function ResetPasswordPage() {
         </div>
 
         <h1 className="text-xl font-semibold mb-2">Reset your password</h1>
-        <p className="text-sm text-muted-foreground mb-6">Enter a new password for your account.</p>
+        <p className="text-sm text-muted-foreground mb-6">Enter a new password for your mailbox.</p>
 
         {done && (
           <motion.div variants={fadeInUp} initial="hidden" animate="visible"
@@ -72,13 +84,13 @@ export default function ResetPasswordPage() {
           </motion.div>
         )}
 
-        {!canReset && !done && (
+        {!token && !done && (
           <p className="text-sm text-muted-foreground">
-            This link is invalid or has expired. Request a new reset link from the sign-in page.
+            This link is invalid. Request a new reset link from the sign-in page.
           </p>
         )}
 
-        {canReset && !done && (
+        {token && !done && (
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
               <Label className="text-xs text-muted-foreground mb-1.5 block">New password</Label>

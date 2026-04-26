@@ -63,7 +63,7 @@ Deno.serve(async (req: Request) => {
       .from('email_accounts')
       .select('id, email, display_name, enabled')
       .eq('id', payload.accountId)
-      .eq('user_id', user.id)
+      .eq('owner_user_id', user.id)
       .maybeSingle();
     if (accountResult.error) throw accountResult.error;
     const account = accountResult.data;

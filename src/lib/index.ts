@@ -1,6 +1,7 @@
 // ─── Route Paths ────────────────────────────────────────────────────────────
 export const ROUTE_PATHS = {
   LOGIN: '/login',
+  CHANGE_PASSWORD: '/change-password',
   ALL_INBOX: '/all-inbox',
   INBOX: '/',
   SENT: '/sent',
@@ -50,6 +51,10 @@ export interface EmailAccount {
   email: string;
   name: string;
   domainId: string;
+  ownerUserId: string;
+  createdByUserId: string;
+  mustChangePassword: boolean;
+  recoveryEmail: string | null;
   enabled: boolean;
   storageUsedMb: number;
   storageQuotaMb: number;

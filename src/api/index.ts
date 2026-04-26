@@ -162,6 +162,8 @@ export const domainsApi = {
 };
 
 // ─── Email Accounts (self-hosted mailboxes) ───────────────────
+// All writes go through edge functions because they need service-role to
+// touch auth.users (create / delete / reset password).
 export const accountsApi = {
   async list(): Promise<EmailAccount[]> {
     const { data, error } = await supabase
@@ -172,51 +174,90 @@ export const accountsApi = {
     return (data ?? []).map(rowToAccount);
   },
 
-  async create(account: {
-    userId: string;
-    email: string;
+  async create(payload: {
+    domainId: string;
+    localPart: string;
     displayName?: string;
-    domainId?: string;
+    forSelf: boolean;
+    password?: string;
+    recoveryEmail?: string;
   }): Promise<EmailAccount> {
-    const { data, error } = await supabase
-      .from('email_accounts')
-      .insert({
-        user_id: account.userId,
-        email: account.email.trim().toLowerCase(),
-        display_name: account.displayName?.trim() || null,
-        domain_id: account.domainId || null,
-      })
-      .select('*, domains(name)')
-      .single();
-    if (error) throw error;
-    return rowToAccount(data);
+    const { data, error } = await supabase.functions.invoke('create-mailbox', {
+      body: {
+        domainId: payload.domainId,
+        localPart: payload.localPart,
+        displayName: payload.displayName,
+        forSelf: payload.forSelf,
+        password: payload.password,
+        recoveryEmail: payload.recoveryEmail,
+      },
+    });
+    if (error) throw new Error(error.message);
+    if (data?.error) throw new Error(data.error);
+    if (!data?.mailbox) throw new Error('Mailbox creation returned no row');
+    return rowToAccount(data.mailbox);
+  },
+
+  async resetPassword(mailboxId: string, newPassword: string): Promise<void> {
+    const { data, error } = await supabase.functions.invoke('reset-mailbox-password', {
+      body: { mailboxId, newPassword },
+    });
+    if (error) throw new Error(error.message);
+    if (data?.error) throw new Error(data.error);
   },
 
   async update(id: string, patch: {
     displayName?: string | null;
-    domainId?: string | null;
-    email?: string;
+    enabled?: boolean;
+    recoveryEmail?: string | null;
   }): Promise<EmailAccount> {
-    const update: Record<string, unknown> = {};
-    if (patch.displayName !== undefined) update.display_name = patch.displayName;
-    if (patch.domainId !== undefined) update.domain_id = patch.domainId;
-    if (patch.email !== undefined) update.email = patch.email.trim().toLowerCase();
-    const { data, error } = await supabase
-      .from('email_accounts')
-      .update(update)
-      .eq('id', id)
-      .select('*, domains(name)')
-      .single();
-    if (error) throw error;
-    return rowToAccount(data);
+    const { data, error } = await supabase.functions.invoke('update-mailbox', {
+      body: {
+        mailboxId: id,
+        displayName: patch.displayName,
+        enabled: patch.enabled,
+        recoveryEmail: patch.recoveryEmail,
+      },
+    });
+    if (error) throw new Error(error.message);
+    if (data?.error) throw new Error(data.error);
+    if (!data?.mailbox) throw new Error('Mailbox update returned no row');
+    return rowToAccount(data.mailbox);
   },
 
   async toggle(id: string, enabled: boolean): Promise<void> {
-    await supabase.from('email_accounts').update({ enabled }).eq('id', id);
+    const { data, error } = await supabase.functions.invoke('update-mailbox', {
+      body: { mailboxId: id, enabled },
+    });
+    if (error) throw new Error(error.message);
+    if (data?.error) throw new Error(data.error);
   },
 
   async delete(id: string): Promise<void> {
-    await supabase.from('email_accounts').delete().eq('id', id);
+    const { data, error } = await supabase.functions.invoke('delete-mailbox', {
+      body: { mailboxId: id },
+    });
+    if (error) throw new Error(error.message);
+    if (data?.error) throw new Error(data.error);
+  },
+};
+
+// ─── Auth (custom flows) ─────────────────────────────────────
+export const authApi = {
+  async requestPasswordReset(email: string, redirectUrl: string): Promise<void> {
+    // Always succeeds (server returns ok regardless) so we can't enumerate
+    // mailboxes. UI just shows a generic confirmation.
+    await supabase.functions.invoke('request-password-reset', {
+      body: { email, redirectUrl },
+    });
+  },
+
+  async confirmPasswordReset(token: string, newPassword: string): Promise<void> {
+    const { data, error } = await supabase.functions.invoke('confirm-password-reset', {
+      body: { token, newPassword },
+    });
+    if (error) throw new Error(error.message);
+    if (data?.error) throw new Error(data.error);
   },
 };
 
@@ -369,6 +410,10 @@ function rowToAccount(row: Record<string, unknown>): EmailAccount {
     email: row.email as string,
     name: (row.display_name as string) ?? (row.email as string),
     domainId: (row.domain_id as string) ?? '',
+    ownerUserId: row.owner_user_id as string,
+    createdByUserId: row.created_by_user_id as string,
+    mustChangePassword: Boolean(row.must_change_password),
+    recoveryEmail: (row.recovery_email as string | null) ?? null,
     enabled: row.enabled as boolean,
     storageUsedMb: (row.storage_used_mb as number) ?? 0,
     storageQuotaMb: (row.storage_quota_mb as number) ?? 5000,

@@ -112,7 +112,7 @@ Deno.serve(async (req: Request) => {
 
     const mailboxRes = await admin
       .from('email_accounts')
-      .select('id, user_id, email, enabled')
+      .select('id, owner_user_id, email, enabled')
       .in('email', addressesLower);
     if (mailboxRes.error) throw mailboxRes.error;
     const mailboxes = (mailboxRes.data ?? []).filter((m) => m.enabled !== false);
@@ -129,7 +129,7 @@ Deno.serve(async (req: Request) => {
         .from('emails')
         .upsert(
           {
-            user_id: mb.user_id,
+            user_id: mb.owner_user_id,
             account_id: mb.id,
             message_id: payload.messageId,
             folder: 'inbox',
@@ -155,7 +155,7 @@ Deno.serve(async (req: Request) => {
       for (const att of payload.attachments ?? []) {
         if (!att.filename) continue;
         const safeName = sanitizeStoragePath(att.filename);
-        const storagePath = `${mb.user_id}/${insertRes.data.id}/${safeName}`;
+        const storagePath = `${mb.owner_user_id}/${insertRes.data.id}/${safeName}`;
         const bytes = fromBase64(att.contentBase64);
         const upload = await admin.storage.from('attachments').upload(storagePath, bytes, {
           contentType: att.mimeType || 'application/octet-stream',
@@ -168,7 +168,7 @@ Deno.serve(async (req: Request) => {
         await admin.from('attachments').upsert(
           {
             email_id: insertRes.data.id,
-            user_id: mb.user_id,
+            user_id: mb.owner_user_id,
             filename: att.filename,
             mime_type: att.mimeType ?? null,
             size_bytes: att.size ?? bytes.byteLength,

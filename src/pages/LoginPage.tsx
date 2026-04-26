@@ -7,7 +7,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Separator } from '@/components/ui/separator';
 import { useAuth } from '@/hooks/useAuth';
-import { supabase } from '@/lib/supabase';
+import { authApi } from '@/api/index';
 import { ROUTE_PATHS } from '@/lib/index';
 import { fadeInUp } from '@/lib/motion';
 
@@ -38,11 +38,19 @@ export default function LoginPage() {
       return;
     }
     setLoading(true);
+    // Custom flow: token is delivered to the mailbox's recovery_email by our
+    // request-password-reset edge function. The endpoint always returns ok
+    // regardless of whether the address exists, so we always show the same
+    // message (no enumeration).
     const redirectTo = `${window.location.origin}${window.location.pathname}#${ROUTE_PATHS.RESET_PASSWORD}`;
-    const { error: err } = await supabase.auth.resetPasswordForEmail(target, { redirectTo });
-    setLoading(false);
-    if (err) { setError(err.message); return; }
-    setResetSent(true);
+    try {
+      await authApi.requestPasswordReset(target, redirectTo);
+      setResetSent(true);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to request reset');
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleSignIn = async (e: React.FormEvent) => {

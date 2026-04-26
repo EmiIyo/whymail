@@ -1,7 +1,8 @@
 import { useState } from 'react';
-import { User, Bell, Shield, Server, Save } from 'lucide-react';
+import { User, Bell, Shield, Server, Save, KeyRound, ShieldCheck } from 'lucide-react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { profilesApi } from '@/api/index';
+import { profilesApi, accountsApi } from '@/api/index';
+import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/hooks/useAuth';
 import { useToast } from '@/hooks/use-toast';
 
@@ -21,6 +22,12 @@ export default function SettingsPage() {
   const [activeTab, setActiveTab] = useState<Tab>('profile');
   const [name, setName] = useState('');
   const [notifications, setNotifications] = useState({ newMail: true, mentions: true, digest: false });
+  const [currentPwd, setCurrentPwd] = useState('');
+  const [newPwd, setNewPwd] = useState('');
+  const [newPwdConfirm, setNewPwdConfirm] = useState('');
+  const [pwdError, setPwdError] = useState<string | null>(null);
+  const [recoveryDraft, setRecoveryDraft] = useState<Record<string, string>>({});
+  const [recoveryError, setRecoveryError] = useState<string | null>(null);
 
   // Load profile
   useQuery({
@@ -40,6 +47,61 @@ export default function SettingsPage() {
       qc.invalidateQueries({ queryKey: ['profile'] });
       toast({ title: 'Settings saved', description: 'Your profile has been updated.' });
     },
+  });
+
+  const passwordMutation = useMutation({
+    mutationFn: async () => {
+      setPwdError(null);
+      if (!user?.email) throw new Error('No active session');
+      if (!currentPwd) throw new Error('Enter your current password');
+      if (newPwd.length < 8) throw new Error('New password must be at least 8 characters');
+      if (newPwd !== newPwdConfirm) throw new Error('Passwords do not match');
+      // Verify current password by attempting a sign-in. supabase-js refreshes
+      // the session on success but it's the same user, so subsequent calls
+      // continue to work with the same identity.
+      const { error: verifyErr } = await supabase.auth.signInWithPassword({
+        email: user.email,
+        password: currentPwd,
+      });
+      if (verifyErr) throw new Error('Current password is incorrect');
+      const { error } = await supabase.auth.updateUser({ password: newPwd });
+      if (error) throw new Error(error.message);
+      const { error: confirmErr } = await supabase.functions.invoke('confirm-password-change');
+      if (confirmErr) console.warn('confirm-password-change failed:', confirmErr);
+    },
+    onSuccess: () => {
+      setCurrentPwd('');
+      setNewPwd('');
+      setNewPwdConfirm('');
+      qc.invalidateQueries({ queryKey: ['must-change-password'] });
+      toast({ title: 'Password updated', description: 'Use the new password for your next sign-in.' });
+    },
+    onError: (err: Error) => setPwdError(err.message),
+  });
+
+  // Mailboxes the current user OWNS — they can edit recovery email on these.
+  const { data: ownMailboxes = [] } = useQuery({
+    queryKey: ['own-mailboxes', user?.id],
+    enabled: !!user,
+    queryFn: async () => {
+      const all = await accountsApi.list();
+      return all.filter((a) => a.ownerUserId === user?.id);
+    },
+  });
+
+  const recoveryMutation = useMutation({
+    mutationFn: async ({ mailboxId, recoveryEmail }: { mailboxId: string; recoveryEmail: string | null }) => {
+      setRecoveryError(null);
+      await accountsApi.update(mailboxId, { recoveryEmail });
+    },
+    onSuccess: (_d, { mailboxId }) => {
+      qc.invalidateQueries({ queryKey: ['own-mailboxes'] });
+      qc.invalidateQueries({ queryKey: ['accounts'] });
+      qc.invalidateQueries({ queryKey: ['missing-recovery'] });
+      setRecoveryDraft((d) => { const n = { ...d }; delete n[mailboxId]; return n; });
+      toast({ title: 'Recovery email saved' });
+    },
+    onError: (err: Error) => setRecoveryError(err.message),
   });
 
   return (
@@ -130,11 +192,12 @@ export default function SettingsPage() {
         {/* Server */}
         {activeTab === 'server' && (
           <div className="border border-black/10 rounded-xl p-5">
-            <h2 className="text-sm font-semibold text-black mb-2">Server Configuration</h2>
-            <p className="text-xs text-black/40 mb-4">Manage IMAP/SMTP settings per account in the Accounts page.</p>
-            <div className="p-4 bg-black/[0.02] rounded-lg">
-              <p className="text-xs font-mono text-black/60">Supabase project: mufffhziogmthccbpwww</p>
-              <p className="text-xs font-mono text-black/40 mt-1">Edge functions: send-email, sync-emails</p>
+            <h2 className="text-sm font-semibold text-black mb-2">Mail infrastructure</h2>
+            <p className="text-xs text-black/40 mb-4">Inbound is delivered by Cloudflare Email Routing into a Worker that webhook-posts to the Supabase receive-email function. Outbound is sent through Resend.</p>
+            <div className="p-4 bg-black/[0.02] rounded-lg space-y-1">
+              <p className="text-xs font-mono text-black/60">Provider in: Cloudflare Email Routing</p>
+              <p className="text-xs font-mono text-black/60">Provider out: Resend (api.resend.com)</p>
+              <p className="text-xs font-mono text-black/60">Storage: Supabase Postgres + private Storage bucket</p>
             </div>
           </div>
         )}
@@ -143,7 +206,99 @@ export default function SettingsPage() {
         {activeTab === 'security' && (
           <div className="space-y-4">
             <div className="border border-black/10 rounded-xl p-5">
-              <h2 className="text-sm font-semibold text-black mb-4">Account Security</h2>
+              <h2 className="text-sm font-semibold text-black mb-4 flex items-center gap-2">
+                <KeyRound size={14} /> Change password
+              </h2>
+              <div className="space-y-3">
+                <div>
+                  <label className="text-xs font-medium text-black/50 uppercase tracking-wide mb-1.5 block">Current password</label>
+                  <input
+                    type="password"
+                    value={currentPwd}
+                    onChange={(e) => setCurrentPwd(e.target.value)}
+                    placeholder="Your existing password"
+                    className="w-full text-sm border border-black/20 rounded-lg px-3 py-2 outline-none focus:border-black bg-white"
+                    autoComplete="current-password"
+                  />
+                </div>
+                <div>
+                  <label className="text-xs font-medium text-black/50 uppercase tracking-wide mb-1.5 block">New password</label>
+                  <input
+                    type="password"
+                    value={newPwd}
+                    onChange={(e) => setNewPwd(e.target.value)}
+                    placeholder="Min 8 characters"
+                    className="w-full text-sm border border-black/20 rounded-lg px-3 py-2 outline-none focus:border-black bg-white"
+                    autoComplete="new-password"
+                  />
+                </div>
+                <div>
+                  <label className="text-xs font-medium text-black/50 uppercase tracking-wide mb-1.5 block">Confirm password</label>
+                  <input
+                    type="password"
+                    value={newPwdConfirm}
+                    onChange={(e) => setNewPwdConfirm(e.target.value)}
+                    placeholder="Repeat the new password"
+                    className="w-full text-sm border border-black/20 rounded-lg px-3 py-2 outline-none focus:border-black bg-white"
+                    autoComplete="new-password"
+                  />
+                </div>
+                {pwdError && <p className="text-xs text-red-600">{pwdError}</p>}
+                <button
+                  onClick={() => passwordMutation.mutate()}
+                  disabled={passwordMutation.isPending || !currentPwd || !newPwd || !newPwdConfirm}
+                  className="bg-black text-white text-xs font-medium px-4 py-2 rounded-lg hover:bg-black/80 disabled:opacity-50 transition-colors"
+                >
+                  {passwordMutation.isPending ? 'Updating…' : 'Update password'}
+                </button>
+              </div>
+            </div>
+
+            {ownMailboxes.length > 0 && (
+              <div className="border border-black/10 rounded-xl p-5">
+                <h2 className="text-sm font-semibold text-black mb-1 flex items-center gap-2">
+                  <ShieldCheck size={14} /> Recovery email
+                </h2>
+                <p className="text-xs text-black/50 mb-4">
+                  Where the password reset link is sent if you forget your password.
+                </p>
+                <div className="space-y-3">
+                  {ownMailboxes.map((mb) => {
+                    const draftValue = recoveryDraft[mb.id];
+                    const value = draftValue !== undefined ? draftValue : (mb.recoveryEmail ?? '');
+                    const isDirty = draftValue !== undefined && draftValue !== (mb.recoveryEmail ?? '');
+                    return (
+                      <div key={mb.id} className="flex items-center gap-2">
+                        <div className="flex-1">
+                          <p className="text-xs text-black/50 mb-1">{mb.email}</p>
+                          <input
+                            type="email"
+                            value={value}
+                            onChange={(e) => setRecoveryDraft((d) => ({ ...d, [mb.id]: e.target.value }))}
+                            placeholder="personal@gmail.com"
+                            className="w-full text-sm border border-black/20 rounded-lg px-3 py-2 outline-none focus:border-black bg-white"
+                          />
+                        </div>
+                        <button
+                          onClick={() => recoveryMutation.mutate({
+                            mailboxId: mb.id,
+                            recoveryEmail: value.trim() || null,
+                          })}
+                          disabled={!isDirty || recoveryMutation.isPending}
+                          className="bg-black text-white text-xs px-3 py-2 rounded-lg mt-5 hover:bg-black/80 disabled:opacity-30 transition-colors shrink-0"
+                        >
+                          Save
+                        </button>
+                      </div>
+                    );
+                  })}
+                  {recoveryError && <p className="text-xs text-red-600">{recoveryError}</p>}
+                </div>
+              </div>
+            )}
+
+            <div className="border border-black/10 rounded-xl p-5">
+              <h2 className="text-sm font-semibold text-black mb-4">Account session</h2>
               <div className="space-y-3">
                 <div className="flex items-center justify-between py-2">
                   <div>
