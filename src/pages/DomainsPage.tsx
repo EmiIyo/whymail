@@ -158,7 +158,11 @@ export default function DomainsPage() {
           <div key={domain.id} className="border border-black/10 rounded-xl overflow-hidden">
             {/* Row */}
             <div className="flex items-center gap-3 px-4 py-3">
-              <div className="flex-1 min-w-0">
+              <button
+                type="button"
+                onClick={() => setExpanded(expanded === domain.id ? null : domain.id)}
+                className="flex-1 min-w-0 text-left active:bg-black/5 -mx-2 px-2 py-1 rounded-md transition-colors"
+              >
                 <div className="flex items-center gap-2">
                   {statusIcon(domain)}
                   <span className="text-sm font-medium text-black truncate">{domain.name}</span>
@@ -171,7 +175,7 @@ export default function DomainsPage() {
                   </span>
                 </div>
                 <p className="text-xs text-black/30 mt-0.5">Added {new Date(domain.createdAt).toLocaleDateString()}</p>
-              </div>
+              </button>
               <div className="flex items-center gap-2">
                 {!domain.verified && (
                   <button
