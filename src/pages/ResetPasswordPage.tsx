@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { Eye, EyeOff, ArrowRight, Lock, AlertCircle, CheckCircle2 } from 'lucide-react';
@@ -6,15 +6,22 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { authApi } from '@/api/index';
+import { supabase } from '@/lib/supabase';
 import { ROUTE_PATHS } from '@/lib/index';
 import { fadeInUp } from '@/lib/motion';
 
-// Token-based reset flow. The recovery email link contains ?token=...; we
-// pass it together with the chosen new password to confirm-password-reset
-// which validates the token, sets the new password, and burns the token.
+// Two flows land on this page:
+//   1. Hosted-mailbox reset: link contains ?token=xxx and is consumed via our
+//      confirm-password-reset edge function.
+//   2. Plain auth-user reset: Supabase's resetPasswordForEmail sends a link
+//      with a recovery code; supabase-js exchanges it automatically and fires
+//      a PASSWORD_RECOVERY event. We then call supabase.auth.updateUser().
+type Mode = 'token' | 'recovery' | 'idle';
+
 export default function ResetPasswordPage() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
+  const [mode, setMode] = useState<Mode>('idle');
   const [token, setToken] = useState<string>('');
   const [password, setPassword] = useState('');
   const [confirm, setConfirm] = useState('');
@@ -23,20 +30,43 @@ export default function ResetPasswordPage() {
   const [error, setError] = useState('');
   const [done, setDone] = useState(false);
 
+  // Determine the flow on mount.
   useEffect(() => {
     const fromQuery = searchParams.get('token');
-    if (fromQuery) setToken(fromQuery);
+    if (fromQuery) {
+      setToken(fromQuery);
+      setMode('token');
+      return;
+    }
+    // Supabase's recovery link drops a code in the URL; the SDK
+    // exchanges it for a session and fires PASSWORD_RECOVERY. If a session is
+    // already present (or appears momentarily) treat it as native flow.
+    supabase.auth.getSession().then(({ data }) => {
+      if (data.session) setMode('recovery');
+    });
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
+      if (event === 'PASSWORD_RECOVERY' || event === 'SIGNED_IN') setMode('recovery');
+    });
+    return () => subscription.unsubscribe();
   }, [searchParams]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
-    if (!token) { setError('Reset token is missing from the link.'); return; }
     if (password.length < 8) { setError('Password must be at least 8 characters.'); return; }
     if (password !== confirm) { setError("Passwords don't match."); return; }
     setLoading(true);
     try {
-      await authApi.confirmPasswordReset(token, password);
+      if (mode === 'token') {
+        await authApi.confirmPasswordReset(token, password);
+      } else if (mode === 'recovery') {
+        const { error: err } = await supabase.auth.updateUser({ password });
+        if (err) throw new Error(err.message);
+        // After updating, sign out so the user enters the new credentials cleanly.
+        await supabase.auth.signOut().catch(() => {});
+      } else {
+        throw new Error('No reset link detected. Request a new one from the sign-in page.');
+      }
       setDone(true);
       setTimeout(() => navigate(ROUTE_PATHS.LOGIN), 2000);
     } catch (err) {
@@ -55,7 +85,7 @@ export default function ResetPasswordPage() {
         </div>
 
         <h1 className="text-xl font-semibold mb-2">Reset your password</h1>
-        <p className="text-sm text-muted-foreground mb-6">Enter a new password for your mailbox.</p>
+        <p className="text-sm text-muted-foreground mb-6">Enter a new password for your account.</p>
 
         {done && (
           <motion.div variants={fadeInUp} initial="hidden" animate="visible"
@@ -73,19 +103,19 @@ export default function ResetPasswordPage() {
           </motion.div>
         )}
 
-        {!token && !done && (
+        {mode === 'idle' && !done && (
           <p className="text-sm text-muted-foreground">
-            This link is invalid. Request a new reset link from the sign-in page.
+            This link is invalid or has expired. Request a new one from the sign-in page.
           </p>
         )}
 
-        {token && !done && (
+        {(mode === 'token' || mode === 'recovery') && !done && (
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
               <Label className="text-xs text-muted-foreground mb-1.5 block">New password</Label>
               <div className="relative">
                 <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                <Input type={showPass ? 'text' : 'password'} value={password} onChange={e => setPassword(e.target.value)} className="pl-9 pr-10" required minLength={8} placeholder="Min. 8 characters" />
+                <Input type={showPass ? 'text' : 'password'} value={password} onChange={e => setPassword(e.target.value)} className="pl-9 pr-10" required minLength={8} placeholder="Min. 8 characters" autoFocus />
                 <button type="button" className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors" onClick={() => setShowPass(s => !s)}>
                   {showPass ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                 </button>
@@ -105,6 +135,13 @@ export default function ResetPasswordPage() {
             </Button>
           </form>
         )}
+
+        <button
+          onClick={() => navigate(ROUTE_PATHS.LOGIN)}
+          className="w-full text-xs text-muted-foreground hover:text-foreground mt-4 transition-colors"
+        >
+          Back to sign in
+        </button>
       </div>
     </div>
   );

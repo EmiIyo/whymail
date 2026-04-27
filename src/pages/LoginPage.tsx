@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { Eye, EyeOff, ArrowRight, Mail, Lock, User, AlertCircle, CheckCircle2 } from 'lucide-react';
@@ -15,11 +15,12 @@ type Mode = 'signin' | 'signup';
 
 export default function LoginPage() {
   const navigate = useNavigate();
-  const { signIn, signUp } = useAuth();
+  const { signIn, signUp, user, loading: authLoading } = useAuth();
   const [mode, setMode] = useState<Mode>('signin');
   const [showPass, setShowPass] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [info, setInfo] = useState('');
 
   const [signInEmail, setSignInEmail] = useState('');
   const [signInPass, setSignInPass] = useState('');
@@ -29,8 +30,14 @@ export default function LoginPage() {
   const [signUpConfirm, setSignUpConfirm] = useState('');
   const [resetSent, setResetSent] = useState(false);
 
+  // Already-signed-in users hitting /login go straight to inbox.
+  useEffect(() => {
+    if (!authLoading && user) navigate(ROUTE_PATHS.INBOX, { replace: true });
+  }, [user, authLoading, navigate]);
+
   const handleForgotPassword = async () => {
     setError('');
+    setInfo('');
     setResetSent(false);
     const target = signInEmail.trim();
     if (!target) {
@@ -38,10 +45,10 @@ export default function LoginPage() {
       return;
     }
     setLoading(true);
-    // Custom flow: token is delivered to the mailbox's recovery_email by our
-    // request-password-reset edge function. The endpoint always returns ok
-    // regardless of whether the address exists, so we always show the same
-    // message (no enumeration).
+    // The endpoint silently handles both cases:
+    //   - Hosted mailbox -> token sent to its recovery email via Resend
+    //   - Plain auth user -> Supabase native reset link sent to the user's own email
+    // It always responds OK so we don't leak whether the address exists.
     const redirectTo = `${window.location.origin}${ROUTE_PATHS.RESET_PASSWORD}`;
     try {
       await authApi.requestPasswordReset(target, redirectTo);
@@ -66,14 +73,20 @@ export default function LoginPage() {
   const handleSignUp = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
+    setInfo('');
     if (signUpPass !== signUpConfirm) { setError("Passwords don't match"); return; }
     setLoading(true);
     const { error: err } = await signUp(signUpEmail, signUpPass, signUpName);
     setLoading(false);
     if (err) { setError(err.message); return; }
-    setError('');
+    // Switch to sign-in tab and prefill the email. Show a clear status message
+    // so the user understands what happened (depending on whether email
+    // confirmation is enabled in Supabase, this may be "check your inbox" or
+    // "you can sign in now").
     setMode('signin');
     setSignInEmail(signUpEmail);
+    setSignInPass('');
+    setInfo(`Account created for ${signUpEmail}. If your project requires email confirmation, check your inbox first; otherwise sign in below.`);
   };
 
   return (
@@ -113,7 +126,7 @@ export default function LoginPage() {
           {/* Tab switcher */}
           <div className="flex bg-muted rounded-lg p-1 mb-8">
             {(['signin', 'signup'] as Mode[]).map(m => (
-              <button key={m} onClick={() => { setMode(m); setError(''); setLoading(false); }}
+              <button key={m} onClick={() => { setMode(m); setError(''); setInfo(''); setResetSent(false); setLoading(false); }}
                 className={`flex-1 py-2 text-sm font-medium rounded-md transition-all duration-200 ${mode === m ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'}`}>
                 {m === 'signin' ? 'Sign in' : 'Sign up'}
               </button>
@@ -129,11 +142,19 @@ export default function LoginPage() {
             </motion.div>
           )}
 
+          {info && !error && (
+            <motion.div variants={fadeInUp} initial="hidden" animate="visible"
+              className="flex items-start gap-2 text-foreground text-sm bg-foreground/5 border border-foreground/15 rounded-lg px-3 py-2 mb-4">
+              <CheckCircle2 className="w-4 h-4 shrink-0 mt-0.5 text-emerald-600" />
+              <span className="leading-snug">{info}</span>
+            </motion.div>
+          )}
+
           {resetSent && (
             <motion.div variants={fadeInUp} initial="hidden" animate="visible"
-              className="flex items-center gap-2 text-emerald-700 text-sm bg-emerald-50 border border-emerald-200 rounded-lg px-3 py-2 mb-4">
-              <CheckCircle2 className="w-4 h-4 shrink-0" />
-              <span>Password reset email sent. Check your inbox.</span>
+              className="flex items-start gap-2 text-emerald-800 text-sm bg-emerald-50 border border-emerald-200 rounded-lg px-3 py-2 mb-4">
+              <CheckCircle2 className="w-4 h-4 shrink-0 mt-0.5" />
+              <span className="leading-snug">If an account exists for that address, a password reset link has been sent. Check your inbox (or your recovery email if it's a hosted mailbox).</span>
             </motion.div>
           )}
 
