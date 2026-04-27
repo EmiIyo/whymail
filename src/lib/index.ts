@@ -84,6 +84,14 @@ export interface DomainAdmin {
   addedAt: string | null;
 }
 
+export interface MailboxAlias {
+  id: string;
+  mailboxId: string;
+  aliasEmail: string;
+  displayName: string | null;
+  createdAt: string;
+}
+
 export interface ComposeData {
   to: string;
   cc: string;
@@ -91,6 +99,8 @@ export interface ComposeData {
   subject: string;
   body: string;
   attachments: File[];
+  /** Optional alias to send AS. null/undefined = primary mailbox. */
+  fromAliasId?: string | null;
 }
 
 export interface AuthUser {

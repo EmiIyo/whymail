@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Plus, Mail, Trash2, ToggleLeft, ToggleRight, Globe, KeyRound, X, AlertCircle, ShieldCheck, Pencil } from 'lucide-react';
-import { accountsApi, domainsApi } from '@/api/index';
+import { Plus, Mail, Trash2, ToggleLeft, ToggleRight, Globe, KeyRound, X, AlertCircle, ShieldCheck, Pencil, AtSign, Shield } from 'lucide-react';
+import { accountsApi, domainsApi, aliasesApi, domainAdminsApi } from '@/api/index';
 import { useAuth } from '@/hooks/useAuth';
 import type { EmailAccount } from '@/lib/index';
 
@@ -33,6 +33,7 @@ export default function AccountsPage() {
   const [editDisplayName, setEditDisplayName] = useState('');
   const [editRecovery, setEditRecovery] = useState('');
   const [editError, setEditError] = useState<string | null>(null);
+  const [aliasTarget, setAliasTarget] = useState<EmailAccount | null>(null);
 
   const { data: accounts = [], isLoading } = useQuery({
     queryKey: ['accounts', user?.id],
@@ -169,6 +170,20 @@ export default function AccountsPage() {
         </div>
       </div>
       <div className="flex items-center gap-2">
+        {/* Aliases only available on for-self mailboxes (owner == creator) */}
+        {acc.ownerUserId === acc.createdByUserId && acc.ownerUserId === user?.id && (
+          <button
+            onClick={() => setAliasTarget(acc)}
+            className="p-1.5 text-black/40 hover:text-black rounded transition-colors"
+            title="Manage aliases"
+          >
+            <AtSign size={14} />
+          </button>
+        )}
+        {/* Grant/revoke domain admin — only on end-user mailboxes that the current user manages */}
+        {isManaged && acc.ownerUserId !== acc.createdByUserId && acc.domainId && (
+          <DomainAdminToggle account={acc} />
+        )}
         <button
           onClick={() => {
             setEditTarget(acc);
@@ -462,6 +477,14 @@ export default function AccountsPage() {
         </div>
       )}
 
+      {/* Aliases dialog */}
+      {aliasTarget && (
+        <AliasesDialog
+          mailbox={aliasTarget}
+          onClose={() => setAliasTarget(null)}
+        />
+      )}
+
       {/* Reset password dialog */}
       {resetTarget && (
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
@@ -510,6 +533,213 @@ export default function AccountsPage() {
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+// ─── Domain admin toggle (per end-user mailbox) ──────────────
+function DomainAdminToggle({ account }: { account: EmailAccount }) {
+  const qc = useQueryClient();
+  const { data: admins = [], isLoading } = useQuery({
+    queryKey: ['domain-admins', account.domainId],
+    queryFn: () => domainAdminsApi.list(account.domainId),
+    enabled: !!account.domainId,
+  });
+  const isAdmin = admins.some((a) => a.userId === account.ownerUserId);
+
+  const grantMutation = useMutation({
+    mutationFn: () => domainAdminsApi.add(account.domainId, account.email),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['domain-admins', account.domainId] }),
+  });
+  const revokeMutation = useMutation({
+    mutationFn: () => domainAdminsApi.remove(account.domainId, account.ownerUserId),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['domain-admins', account.domainId] }),
+  });
+
+  const pending = grantMutation.isPending || revokeMutation.isPending || isLoading;
+
+  return (
+    <button
+      onClick={() => {
+        if (pending) return;
+        if (isAdmin) {
+          if (window.confirm(`Revoke domain admin access from ${account.email}?`)) revokeMutation.mutate();
+        } else {
+          if (window.confirm(`Grant ${account.email} full domain management access?`)) grantMutation.mutate();
+        }
+      }}
+      disabled={pending}
+      className={`p-1.5 rounded transition-colors ${
+        isAdmin ? 'text-emerald-600 hover:text-emerald-700' : 'text-black/30 hover:text-black'
+      } disabled:opacity-50`}
+      title={isAdmin ? 'Revoke domain admin' : 'Grant domain admin (lets this user manage the domain)'}
+    >
+      <Shield size={14} className={isAdmin ? 'fill-emerald-600/15' : ''} />
+    </button>
+  );
+}
+
+// ─── Aliases dialog ──────────────────────────────────────────
+interface AliasesDialogProps {
+  mailbox: EmailAccount;
+  onClose: () => void;
+}
+
+function AliasesDialog({ mailbox, onClose }: AliasesDialogProps) {
+  const qc = useQueryClient();
+  const domainPart = mailbox.email.split('@')[1] ?? '';
+  const [newLocal, setNewLocal] = useState('');
+  const [newDisplayName, setNewDisplayName] = useState('');
+  const [error, setError] = useState<string | null>(null);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editingName, setEditingName] = useState('');
+
+  const { data: aliases = [], isLoading } = useQuery({
+    queryKey: ['aliases', mailbox.id],
+    queryFn: () => aliasesApi.list(mailbox.id),
+  });
+
+  const addMutation = useMutation({
+    mutationFn: () => {
+      setError(null);
+      if (!newLocal.trim()) throw new Error('Enter the part before @');
+      return aliasesApi.add({
+        mailboxId: mailbox.id,
+        localPart: newLocal,
+        displayName: newDisplayName.trim() || undefined,
+      });
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['aliases', mailbox.id] });
+      setNewLocal('');
+      setNewDisplayName('');
+    },
+    onError: (err: Error) => setError(err.message),
+  });
+
+  const updateMutation = useMutation({
+    mutationFn: ({ id, name }: { id: string; name: string | null }) =>
+      aliasesApi.update(id, { displayName: name }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['aliases', mailbox.id] });
+      setEditingId(null);
+    },
+    onError: (err: Error) => setError(err.message),
+  });
+
+  const removeMutation = useMutation({
+    mutationFn: (id: string) => aliasesApi.remove(id),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['aliases', mailbox.id] }),
+    onError: (err: Error) => setError(err.message),
+  });
+
+  return (
+    <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
+      <div className="bg-white rounded-2xl p-6 max-w-md w-full space-y-4 max-h-[90vh] overflow-y-auto">
+        <div className="flex items-center justify-between">
+          <div>
+            <h2 className="text-base font-semibold text-black">Aliases for {mailbox.email}</h2>
+            <p className="text-[11px] text-black/50 mt-0.5">Other addresses that deliver to this inbox</p>
+          </div>
+          <button onClick={onClose} className="text-black/30 hover:text-black"><X size={16} /></button>
+        </div>
+
+        <div className="border border-black/10 rounded-xl divide-y divide-black/5">
+          {isLoading && <div className="px-3 py-3 text-xs text-black/40">Loading…</div>}
+          {!isLoading && aliases.length === 0 && (
+            <div className="px-3 py-3 text-[11px] text-black/40">
+              No aliases yet. Add one below — mail to that address will arrive in this inbox.
+            </div>
+          )}
+          {aliases.map((a) => (
+            <div key={a.id} className="px-3 py-2.5 flex items-center gap-2">
+              <div className="w-7 h-7 rounded-full bg-black/5 flex items-center justify-center shrink-0">
+                <AtSign size={12} className="text-black/40" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-xs font-medium text-black truncate">{a.aliasEmail}</p>
+                {editingId === a.id ? (
+                  <div className="flex gap-1 mt-1">
+                    <input
+                      type="text"
+                      value={editingName}
+                      onChange={(e) => setEditingName(e.target.value)}
+                      placeholder="Display name (e.g. Petbook Support)"
+                      className="flex-1 text-xs border border-black/15 rounded px-2 py-1 outline-none focus:border-black"
+                      autoFocus
+                    />
+                    <button
+                      onClick={() => updateMutation.mutate({ id: a.id, name: editingName.trim() || null })}
+                      className="text-xs bg-black text-white px-2 rounded"
+                    >Save</button>
+                    <button
+                      onClick={() => setEditingId(null)}
+                      className="text-xs text-black/50 px-1"
+                    >×</button>
+                  </div>
+                ) : (
+                  <p className="text-[10px] text-black/40 truncate">
+                    {a.displayName ? `Display name: ${a.displayName}` : 'No display name override'}
+                  </p>
+                )}
+              </div>
+              {editingId !== a.id && (
+                <>
+                  <button
+                    onClick={() => { setEditingId(a.id); setEditingName(a.displayName ?? ''); setError(null); }}
+                    className="p-1.5 text-black/40 hover:text-black rounded transition-colors"
+                    title="Edit display name"
+                  >
+                    <Pencil size={12} />
+                  </button>
+                  <button
+                    onClick={() => {
+                      if (window.confirm(`Remove alias ${a.aliasEmail}?`)) removeMutation.mutate(a.id);
+                    }}
+                    disabled={removeMutation.isPending}
+                    className="p-1.5 text-black/30 hover:text-red-600 rounded transition-colors"
+                    title="Remove"
+                  >
+                    <Trash2 size={12} />
+                  </button>
+                </>
+              )}
+            </div>
+          ))}
+        </div>
+
+        <div className="border-t border-black/10 pt-3 space-y-2">
+          <p className="text-xs font-semibold text-black">Add new alias</p>
+          <div className="flex items-center border border-black/15 rounded-lg overflow-hidden focus-within:border-black">
+            <input
+              type="text"
+              value={newLocal}
+              onChange={(e) => setNewLocal(e.target.value)}
+              placeholder="e.g. info"
+              className="flex-1 text-sm px-3 py-2 outline-none bg-white"
+            />
+            <span className="text-sm text-black/50 pr-3 select-none">@{domainPart}</span>
+          </div>
+          <input
+            type="text"
+            value={newDisplayName}
+            onChange={(e) => setNewDisplayName(e.target.value)}
+            placeholder="Display name (optional, e.g. Petbook Support)"
+            className="w-full text-sm border border-black/15 rounded-lg px-3 py-2 outline-none focus:border-black bg-white"
+          />
+          {error && <p className="text-xs text-red-600">{error}</p>}
+          <div className="flex gap-2">
+            <button
+              onClick={() => addMutation.mutate()}
+              disabled={addMutation.isPending || !newLocal.trim()}
+              className="bg-black text-white text-xs px-4 py-2 rounded-lg hover:bg-black/80 disabled:opacity-50 transition-colors"
+            >
+              {addMutation.isPending ? 'Adding…' : 'Add alias'}
+            </button>
+            <button onClick={onClose} className="text-xs text-black/50 px-2 hover:text-black">Done</button>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }

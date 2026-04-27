@@ -1,4 +1,5 @@
 import { useState, useRef } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, Minimize2, Maximize2, Paperclip, Send, ChevronDown, FileText } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -6,7 +7,10 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { useEmailActions } from '@/hooks/useEmailActions';
+import { useEmailStore } from '@/hooks/useEmailStore';
+import { useAccounts } from '@/hooks/useAccounts';
 import { useToast } from '@/hooks/use-toast';
+import { aliasesApi } from '@/api/index';
 import type { ComposeData } from '@/lib/index';
 import { formatBytes } from '@/lib/index';
 import { springPresets } from '@/lib/motion';
@@ -19,6 +23,8 @@ interface ComposeModalProps {
 
 export function ComposeModal({ open, onClose, initialData }: ComposeModalProps) {
   const { sendEmail, saveDraft, sending, savingDraft } = useEmailActions();
+  const { activeAccountId } = useEmailStore();
+  const { accounts } = useAccounts();
   const { toast } = useToast();
   const fileRef = useRef<HTMLInputElement>(null);
   const [minimized, setMinimized] = useState(false);
@@ -31,9 +37,25 @@ export function ComposeModal({ open, onClose, initialData }: ComposeModalProps) 
     subject: initialData?.subject ?? '',
     body: initialData?.body ?? '',
     attachments: [],
+    fromAliasId: initialData?.fromAliasId ?? null,
   });
 
-  const update = (k: keyof ComposeData, v: string | File[]) => setForm(f => ({ ...f, [k]: v }));
+  const update = <K extends keyof ComposeData>(k: K, v: ComposeData[K]) => setForm(f => ({ ...f, [k]: v }));
+
+  const activeMailbox = accounts.find((a) => a.id === activeAccountId);
+  // Aliases are only available on the user's own (for-self) mailboxes.
+  const isForSelfMailbox = activeMailbox?.ownerUserId === activeMailbox?.createdByUserId;
+  const { data: aliases = [] } = useQuery({
+    queryKey: ['aliases', activeAccountId],
+    queryFn: () => aliasesApi.list(activeAccountId),
+    enabled: !!activeAccountId && isForSelfMailbox && open,
+  });
+
+  const fromOptions: Array<{ id: string | null; email: string; displayName: string | null }> = [
+    { id: null, email: activeMailbox?.email ?? '', displayName: activeMailbox?.name ?? null },
+    ...aliases.map((a) => ({ id: a.id, email: a.aliasEmail, displayName: a.displayName })),
+  ];
+  const selectedFrom = fromOptions.find((f) => f.id === (form.fromAliasId ?? null)) ?? fromOptions[0];
 
   const handleFiles = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files ?? []);
@@ -118,6 +140,30 @@ export function ComposeModal({ open, onClose, initialData }: ComposeModalProps) 
             <>
               {/* Fields */}
               <div className="divide-y divide-border">
+                {/* From — visible when there are aliases available */}
+                {isForSelfMailbox && aliases.length > 0 && (
+                  <div className="flex items-center px-4">
+                    <label className="text-xs text-muted-foreground w-8 shrink-0">From</label>
+                    <select
+                      value={form.fromAliasId ?? ''}
+                      onChange={(e) => update('fromAliasId', e.target.value === '' ? null : e.target.value)}
+                      className="flex-1 text-sm h-10 px-2 outline-none bg-transparent"
+                    >
+                      {fromOptions.map((opt) => (
+                        <option key={opt.id ?? 'primary'} value={opt.id ?? ''}>
+                          {opt.displayName ? `${opt.displayName} <${opt.email}>` : opt.email}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+                {/* When the user only has a primary identity, just show it as a non-editable label. */}
+                {(!isForSelfMailbox || aliases.length === 0) && selectedFrom?.email && (
+                  <div className="flex items-center px-4 py-2 text-xs text-muted-foreground">
+                    <span className="w-8 shrink-0">From</span>
+                    <span className="truncate">{selectedFrom.displayName ? `${selectedFrom.displayName} <${selectedFrom.email}>` : selectedFrom.email}</span>
+                  </div>
+                )}
                 <div className="flex items-center px-4">
                   <label className="text-xs text-muted-foreground w-8 shrink-0">To</label>
                   <Input

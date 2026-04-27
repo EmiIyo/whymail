@@ -1,5 +1,5 @@
 import { supabase } from '@/lib/supabase';
-import type { Email, Domain, DomainAdmin, EmailAccount, Folder } from '@/lib/index';
+import type { Email, Domain, DomainAdmin, EmailAccount, MailboxAlias, Folder } from '@/lib/index';
 
 // ─── Emails ──────────────────────────────────────────────────
 export const emailsApi = {
@@ -324,6 +324,70 @@ export const authApi = {
   },
 };
 
+// ─── Mailbox Aliases ──────────────────────────────────────────
+function rowToAlias(row: Record<string, unknown>): MailboxAlias {
+  return {
+    id: row.id as string,
+    mailboxId: row.mailbox_id as string,
+    aliasEmail: row.alias_email as string,
+    displayName: (row.display_name as string | null) ?? null,
+    createdAt: row.created_at as string,
+  };
+}
+
+export const aliasesApi = {
+  async list(mailboxId: string): Promise<MailboxAlias[]> {
+    const { data, error } = await supabase
+      .from('mailbox_aliases')
+      .select('id, mailbox_id, alias_email, display_name, created_at')
+      .eq('mailbox_id', mailboxId)
+      .order('created_at', { ascending: true });
+    if (error) throw error;
+    return (data ?? []).map(rowToAlias);
+  },
+
+  async listAllForOwner(): Promise<MailboxAlias[]> {
+    // RLS already filters to mailboxes the user owns or admins.
+    const { data, error } = await supabase
+      .from('mailbox_aliases')
+      .select('id, mailbox_id, alias_email, display_name, created_at');
+    if (error) throw error;
+    return (data ?? []).map(rowToAlias);
+  },
+
+  async add(payload: { mailboxId: string; localPart: string; displayName?: string }): Promise<MailboxAlias> {
+    const { data, error } = await supabase.functions.invoke('add-alias', {
+      body: {
+        mailboxId: payload.mailboxId,
+        localPart: payload.localPart,
+        displayName: payload.displayName,
+      },
+    });
+    if (error) throw new Error(error.message);
+    if (data?.error) throw new Error(data.error);
+    if (!data?.alias) throw new Error('Failed to add alias');
+    return rowToAlias(data.alias);
+  },
+
+  async update(aliasId: string, patch: { displayName?: string | null }): Promise<MailboxAlias> {
+    const { data, error } = await supabase.functions.invoke('update-alias', {
+      body: { aliasId, displayName: patch.displayName },
+    });
+    if (error) throw new Error(error.message);
+    if (data?.error) throw new Error(data.error);
+    if (!data?.alias) throw new Error('Failed to update alias');
+    return rowToAlias(data.alias);
+  },
+
+  async remove(aliasId: string): Promise<void> {
+    const { data, error } = await supabase.functions.invoke('remove-alias', {
+      body: { aliasId },
+    });
+    if (error) throw new Error(error.message);
+    if (data?.error) throw new Error(data.error);
+  },
+};
+
 // ─── Profiles ────────────────────────────────────────────────
 export const profilesApi = {
   async get(userId: string): Promise<{ fullName: string | null; avatarUrl: string | null }> {
@@ -368,6 +432,7 @@ export const mailApi = {
   async send(payload: {
     userId: string;
     accountId: string;
+    fromAliasId?: string;
     to: string;
     cc?: string;
     bcc?: string;
@@ -385,6 +450,7 @@ export const mailApi = {
       const { data, error } = await supabase.functions.invoke('send-email', {
         body: {
           accountId: payload.accountId,
+          fromAliasId: payload.fromAliasId,
           to: payload.to,
           cc: payload.cc,
           bcc: payload.bcc,

@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { NavLink, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
@@ -22,6 +23,7 @@ import { useUnreadCounts } from '@/hooks/useUnreadCounts';
 import { useIsDesktop } from '@/hooks/useMediaQuery';
 import { ROUTE_PATHS, getInitials } from '@/lib/index';
 import { useAuth } from '@/hooks/useAuth';
+import { domainsApi } from '@/api/index';
 import { ComposeModal } from '@/components/ComposeModal';
 import { MobileTabBar } from '@/components/MobileTabBar';
 import { MobileFAB } from '@/components/MobileFAB';
@@ -41,9 +43,11 @@ const folderNav: FolderNavItem[] = [
   { label: 'Trash', icon: Trash2, path: ROUTE_PATHS.TRASH, folder: 'trash' },
 ];
 
-const manageNav = [
-  { label: 'Domains', icon: Globe, path: ROUTE_PATHS.DOMAINS },
-  { label: 'Accounts', icon: Users, path: ROUTE_PATHS.ACCOUNTS },
+type ManageNavItem = { label: string; icon: React.ComponentType<{ className?: string }>; path: string; requiresDomainAdmin?: boolean };
+
+const manageNav: ManageNavItem[] = [
+  { label: 'Domains',  icon: Globe,    path: ROUTE_PATHS.DOMAINS,  requiresDomainAdmin: true },
+  { label: 'Accounts', icon: Users,    path: ROUTE_PATHS.ACCOUNTS },
   { label: 'Settings', icon: Settings, path: ROUTE_PATHS.SETTINGS },
 ];
 
@@ -57,9 +61,19 @@ export function Layout({ children }: LayoutProps) {
     setActiveAccount, sidebarOpen, setSidebarOpen } = useEmailStore();
   const { accounts, activeAccountId } = useAccounts();
   const unreadCounts = useUnreadCounts(activeAccountId || null);
-  const { signOut } = useAuth();
+  const { signOut, user } = useAuth();
   const isDesktop = useIsDesktop();
   const [searchInput, setSearchInput] = useState('');
+
+  // Hide the Domains nav entry for users that are not an owner or co-admin of
+  // any domain. RLS already filters domainsApi.list() to admin-visible rows.
+  const { data: domains = [] } = useQuery({
+    queryKey: ['domains', user?.id],
+    queryFn: () => domainsApi.list(),
+    enabled: !!user,
+  });
+  const canManageDomains = domains.length > 0;
+  const visibleManageNav = manageNav.filter((n) => !n.requiresDomainAdmin || canManageDomains);
 
   const showSidebar = isDesktop || sidebarOpen;
   const activeAccount = accounts.find(a => a.id === activeAccountId);
@@ -237,7 +251,7 @@ export function Layout({ children }: LayoutProps) {
           {/* Management nav */}
           <div>
             <p className="px-3 py-1 text-xs font-semibold uppercase tracking-widest text-sidebar-foreground/40">Manage</p>
-            {manageNav.map(({ label, icon: Icon, path }) => (
+            {visibleManageNav.map(({ label, icon: Icon, path }) => (
               <NavLink
                 key={path}
                 to={path}
