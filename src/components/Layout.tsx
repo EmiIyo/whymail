@@ -4,7 +4,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   Inbox, Send, FileText, AlertTriangle, Trash2, Search,
   Globe, Users, Settings, PenSquare, ChevronDown,
-  X, LogOut, Bell, MailsIcon
+  X, LogOut, Bell, MailsIcon, Plus
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
@@ -113,48 +113,63 @@ export function Layout({ children }: LayoutProps) {
           </button>
         </div>
 
-        {/* Account switcher */}
+        {/* Account switcher (or onboarding CTA when there are no mailboxes yet) */}
         <div className="px-4 py-3 border-b border-sidebar-border">
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <button className="flex items-center gap-2.5 w-full px-2 py-2 rounded-lg hover:bg-sidebar-accent transition-colors group">
-                <Avatar className="w-7 h-7 shrink-0">
-                  <AvatarFallback className="text-xs bg-sidebar-primary text-sidebar-primary-foreground">
-                    {getInitials(activeAccount?.name ?? 'WM')}
-                  </AvatarFallback>
-                </Avatar>
-                <div className="flex-1 min-w-0 text-left">
-                  <p className="text-sm font-medium text-sidebar-foreground truncate">{activeAccount?.name}</p>
-                  <p className="text-xs text-sidebar-foreground/50 truncate font-mono">{activeAccount?.email}</p>
-                </div>
-                <ChevronDown className="w-3.5 h-3.5 text-sidebar-foreground/40 group-hover:text-sidebar-foreground/70 transition-colors" />
-              </button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="start" className="w-64">
-              {accounts.map(acc => (
-                <DropdownMenuItem
-                  key={acc.id}
-                  onClick={() => setActiveAccount(acc.id)}
-                  className="flex items-center gap-2.5 py-2"
-                >
-                  <Avatar className="w-6 h-6 shrink-0">
-                    <AvatarFallback className="text-xs">{getInitials(acc.name)}</AvatarFallback>
+          {accounts.length === 0 ? (
+            <button
+              onClick={() => { navigate(ROUTE_PATHS.DOMAINS); setSidebarOpen(false); }}
+              className="flex items-center gap-2.5 w-full px-2.5 py-2.5 rounded-lg bg-sidebar-primary/15 hover:bg-sidebar-primary/25 transition-colors group text-left"
+            >
+              <div className="w-7 h-7 rounded-full bg-sidebar-primary flex items-center justify-center shrink-0">
+                <Plus className="w-4 h-4 text-sidebar-primary-foreground" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-semibold text-sidebar-primary leading-tight">Set up your first mailbox</p>
+                <p className="text-[11px] text-sidebar-foreground/55 leading-tight mt-0.5">Add a domain → create a mailbox</p>
+              </div>
+            </button>
+          ) : (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <button className="flex items-center gap-2.5 w-full px-2 py-2 rounded-lg hover:bg-sidebar-accent transition-colors group">
+                  <Avatar className="w-7 h-7 shrink-0">
+                    <AvatarFallback className="text-xs bg-sidebar-primary text-sidebar-primary-foreground">
+                      {getInitials(activeAccount?.name ?? 'WM')}
+                    </AvatarFallback>
                   </Avatar>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium truncate">{acc.name}</p>
-                    <p className="text-xs text-muted-foreground font-mono truncate">{acc.email}</p>
+                  <div className="flex-1 min-w-0 text-left">
+                    <p className="text-sm font-medium text-sidebar-foreground truncate">{activeAccount?.name}</p>
+                    <p className="text-xs text-sidebar-foreground/50 truncate font-mono">{activeAccount?.email}</p>
                   </div>
-                  {acc.id === activeAccountId && (
-                    <div className="w-1.5 h-1.5 rounded-full bg-primary" />
-                  )}
+                  <ChevronDown className="w-3.5 h-3.5 text-sidebar-foreground/40 group-hover:text-sidebar-foreground/70 transition-colors" />
+                </button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="start" className="w-64">
+                {accounts.map(acc => (
+                  <DropdownMenuItem
+                    key={acc.id}
+                    onClick={() => setActiveAccount(acc.id)}
+                    className="flex items-center gap-2.5 py-2"
+                  >
+                    <Avatar className="w-6 h-6 shrink-0">
+                      <AvatarFallback className="text-xs">{getInitials(acc.name)}</AvatarFallback>
+                    </Avatar>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium truncate">{acc.name}</p>
+                      <p className="text-xs text-muted-foreground font-mono truncate">{acc.email}</p>
+                    </div>
+                    {acc.id === activeAccountId && (
+                      <div className="w-1.5 h-1.5 rounded-full bg-primary" />
+                    )}
+                  </DropdownMenuItem>
+                ))}
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onClick={() => navigate(ROUTE_PATHS.ACCOUNTS)}>
+                  <Users className="w-3.5 h-3.5 mr-2" /> Manage mailboxes
                 </DropdownMenuItem>
-              ))}
-              <DropdownMenuSeparator />
-              <DropdownMenuItem onClick={() => navigate(ROUTE_PATHS.ACCOUNTS)}>
-                <Users className="w-3.5 h-3.5 mr-2" /> Manage accounts
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          )}
         </div>
 
         {/* Compose button */}
