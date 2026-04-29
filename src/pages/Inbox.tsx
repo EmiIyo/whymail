@@ -26,14 +26,14 @@ export default function InboxPage() {
   });
 
   useEffect(() => {
-    if (!user) return;
-    const channel = emailsApi.subscribeToInbox(user.id, () => {
+    if (!activeAccountId) return;
+    const channel = emailsApi.subscribeToAccount(activeAccountId, () => {
       qc.invalidateQueries({ queryKey: ['emails'] });
       qc.invalidateQueries({ queryKey: ['all-inbox'] });
       qc.invalidateQueries({ queryKey: ['unread-counts'] });
     });
     return () => { supabase.removeChannel(channel); };
-  }, [user, qc]);
+  }, [activeAccountId, qc]);
 
   const selectedEmail = emails.find((e) => e.id === selectedEmailId);
   const showView = !!selectedEmail;

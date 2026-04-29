@@ -3,24 +3,26 @@ import type { Email, Domain, DomainAdmin, EmailAccount, MailboxAlias, AdminStats
 
 // ─── Emails ──────────────────────────────────────────────────
 export const emailsApi = {
-  async list(accountId: string, folder: Folder): Promise<Email[]> {
+  async list(accountId: string, folder: Folder, limit = 50): Promise<Email[]> {
     const { data, error } = await supabase
       .from('emails')
       .select('*, attachments(*)')
       .eq('account_id', accountId)
       .eq('folder', folder)
-      .order('sent_at', { ascending: false });
+      .order('sent_at', { ascending: false })
+      .limit(limit);
     if (error) throw error;
     return Promise.all((data ?? []).map(rowToEmail));
   },
 
-  async listAll(userId: string): Promise<Email[]> {
+  async listAll(userId: string, limit = 50): Promise<Email[]> {
     const { data, error } = await supabase
       .from('emails')
       .select('*, attachments(*)')
       .eq('user_id', userId)
       .eq('folder', 'inbox')
-      .order('sent_at', { ascending: false });
+      .order('sent_at', { ascending: false })
+      .limit(limit);
     if (error) throw error;
     return Promise.all((data ?? []).map(rowToEmail));
   },
@@ -87,9 +89,32 @@ export const emailsApi = {
     return await rowToEmail(data);
   },
 
-  subscribeToInbox(userId: string, onNew: (email: Email) => void) {
+  /**
+   * Subscribe to inbox INSERTs scoped to a single mailbox. Use this on the
+   * Inbox page so other mailboxes' arrivals don't refetch the active view.
+   */
+  subscribeToAccount(accountId: string, onNew: (email: Email) => void) {
     return supabase
-      .channel('inbox-changes')
+      .channel(`inbox-changes-${accountId}`)
+      .on('postgres_changes', {
+        event: 'INSERT',
+        schema: 'public',
+        table: 'emails',
+        filter: `account_id=eq.${accountId}`,
+      }, async (payload) => {
+        const email = await rowToEmail(payload.new as Record<string, unknown>);
+        onNew(email);
+      })
+      .subscribe();
+  },
+
+  /**
+   * Subscribe to inbox INSERTs across every mailbox owned by a user. Used
+   * on the All Inbox page where we genuinely want all of the user's mail.
+   */
+  subscribeToUser(userId: string, onNew: (email: Email) => void) {
+    return supabase
+      .channel(`inbox-changes-user-${userId}`)
       .on('postgres_changes', {
         event: 'INSERT',
         schema: 'public',
@@ -128,26 +153,16 @@ export const domainsApi = {
     return (data ?? []).map(rowToDomain);
   },
 
-  async create(name: string, userId: string): Promise<Domain> {
-    const domainName = name.trim().toLowerCase();
-    const dnsBase: {
-      mx_record: string;
-      spf_record: string;
-      dkim_record: string | null;
-      dmarc_record: string;
-    } = {
-      mx_record: `10 mail.${domainName}`,
-      spf_record: `v=spf1 include:mail.${domainName} ~all`,
-      dkim_record: null,
-      dmarc_record: `v=DMARC1; p=none; rua=mailto:dmarc@${domainName}`,
-    };
-    const { data, error } = await supabase
-      .from('domains')
-      .insert({ user_id: userId, name: domainName, ...dnsBase })
-      .select()
-      .single();
-    if (error) throw error;
-    return rowToDomain(data);
+  async create(name: string): Promise<Domain> {
+    // Routed through an edge function so we can return precise error messages
+    // and centralise the super-admin permission check.
+    const { data, error } = await supabase.functions.invoke('create-domain', {
+      body: { name },
+    });
+    if (error) throw new Error(error.message);
+    if (data?.error) throw new Error(data.error);
+    if (!data?.domain) throw new Error('Domain creation returned no row');
+    return rowToDomain(data.domain);
   },
 
   async delete(id: string): Promise<void> {
@@ -411,18 +426,39 @@ export const adminApi = {
 };
 
 // ─── Profiles ────────────────────────────────────────────────
+export interface ProfilePrefs {
+  fullName: string | null;
+  avatarUrl: string | null;
+  notifyNewMail: boolean;
+  notifyMentions: boolean;
+}
+
 export const profilesApi = {
-  async get(userId: string): Promise<{ fullName: string | null; avatarUrl: string | null }> {
+  async get(userId: string): Promise<ProfilePrefs> {
     const { data } = await supabase
       .from('profiles')
-      .select('full_name, avatar_url')
+      .select('full_name, avatar_url, notify_new_mail, notify_mentions')
       .eq('id', userId)
       .single();
-    return { fullName: data?.full_name ?? null, avatarUrl: data?.avatar_url ?? null };
+    return {
+      fullName: data?.full_name ?? null,
+      avatarUrl: data?.avatar_url ?? null,
+      notifyNewMail: data?.notify_new_mail ?? true,
+      notifyMentions: data?.notify_mentions ?? true,
+    };
   },
 
   async update(userId: string, fullName: string): Promise<void> {
     await supabase.from('profiles').update({ full_name: fullName }).eq('id', userId);
+  },
+
+  async updateNotifications(userId: string, prefs: { notifyNewMail?: boolean; notifyMentions?: boolean }): Promise<void> {
+    const update: Record<string, unknown> = {};
+    if (prefs.notifyNewMail !== undefined) update.notify_new_mail = prefs.notifyNewMail;
+    if (prefs.notifyMentions !== undefined) update.notify_mentions = prefs.notifyMentions;
+    if (Object.keys(update).length === 0) return;
+    const { error } = await supabase.from('profiles').update(update).eq('id', userId);
+    if (error) throw error;
   },
 };
 

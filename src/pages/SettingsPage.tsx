@@ -21,7 +21,8 @@ export default function SettingsPage() {
   const qc = useQueryClient();
   const [activeTab, setActiveTab] = useState<Tab>('profile');
   const [name, setName] = useState('');
-  const [notifications, setNotifications] = useState({ newMail: true, mentions: true, digest: false });
+  const [notifyNewMail, setNotifyNewMail] = useState(true);
+  const [notifyMentions, setNotifyMentions] = useState(true);
   const [currentPwd, setCurrentPwd] = useState('');
   const [newPwd, setNewPwd] = useState('');
   const [newPwdConfirm, setNewPwdConfirm] = useState('');
@@ -36,9 +37,18 @@ export default function SettingsPage() {
       if (!user) return null;
       const p = await profilesApi.get(user.id);
       setName(p.fullName ?? user.email?.split('@')[0] ?? '');
+      setNotifyNewMail(p.notifyNewMail);
+      setNotifyMentions(p.notifyMentions);
       return p;
     },
     enabled: !!user,
+  });
+
+  const notificationMutation = useMutation({
+    mutationFn: (prefs: { notifyNewMail?: boolean; notifyMentions?: boolean }) =>
+      profilesApi.updateNotifications(user!.id, prefs),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['profile'] }),
+    onError: (err: Error) => toast({ title: 'Could not save preference', description: err.message, variant: 'destructive' }),
   });
 
   const saveMutation = useMutation({
@@ -167,24 +177,20 @@ export default function SettingsPage() {
           <div className="border border-black/10 rounded-xl p-5">
             <h2 className="text-sm font-semibold text-black mb-4">Notification Preferences</h2>
             <div className="space-y-4">
-              {[
-                { key: 'newMail' as const, label: 'New email', desc: 'Alert when new mail arrives' },
-                { key: 'mentions' as const, label: 'Mentions', desc: 'Alert when you are mentioned' },
-                { key: 'digest' as const, label: 'Daily digest', desc: 'Daily summary email' },
-              ].map(item => (
-                <div key={item.key} className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm font-medium text-black">{item.label}</p>
-                    <p className="text-xs text-black/40">{item.desc}</p>
-                  </div>
-                  <button
-                    onClick={() => setNotifications(n => ({ ...n, [item.key]: !n[item.key] }))}
-                    className={`w-10 h-6 rounded-full transition-colors relative ${notifications[item.key] ? 'bg-black' : 'bg-black/20'}`}
-                  >
-                    <span className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-transform shadow-sm ${notifications[item.key] ? 'translate-x-5' : 'translate-x-1'}`} />
-                  </button>
-                </div>
-              ))}
+              <ToggleRow
+                label="New email"
+                desc="Show a desktop notification when a new mail arrives in any of your inboxes."
+                checked={notifyNewMail}
+                onChange={(v) => { setNotifyNewMail(v); notificationMutation.mutate({ notifyNewMail: v }); }}
+                disabled={notificationMutation.isPending}
+              />
+              <ToggleRow
+                label="Mentions"
+                desc="Notify when an incoming mail addresses you directly (To/CC includes your address)."
+                checked={notifyMentions}
+                onChange={(v) => { setNotifyMentions(v); notificationMutation.mutate({ notifyMentions: v }); }}
+                disabled={notificationMutation.isPending}
+              />
             </div>
           </div>
         )}
@@ -320,6 +326,40 @@ export default function SettingsPage() {
           </div>
         )}
       </div>
+    </div>
+  );
+}
+
+interface ToggleRowProps {
+  label: string;
+  desc: string;
+  checked: boolean;
+  onChange: (v: boolean) => void;
+  disabled?: boolean;
+}
+
+function ToggleRow({ label, desc, checked, onChange, disabled }: ToggleRowProps) {
+  return (
+    <div className="flex items-start justify-between gap-4 py-1">
+      <div className="flex-1 min-w-0">
+        <p className="text-sm font-medium text-black">{label}</p>
+        <p className="text-xs text-black/50 mt-0.5 leading-snug">{desc}</p>
+      </div>
+      <button
+        type="button"
+        onClick={() => !disabled && onChange(!checked)}
+        disabled={disabled}
+        aria-pressed={checked}
+        className={`relative shrink-0 w-11 h-6 rounded-full transition-colors duration-200 disabled:opacity-50 ${
+          checked ? 'bg-black' : 'bg-black/15'
+        }`}
+      >
+        <span
+          className={`absolute top-0.5 w-5 h-5 bg-white rounded-full shadow-sm transition-transform duration-200 ${
+            checked ? 'translate-x-[22px]' : 'translate-x-0.5'
+          }`}
+        />
+      </button>
     </div>
   );
 }

@@ -1,7 +1,7 @@
 import { motion } from 'framer-motion';
 import {
   Reply, Forward, Trash2, Star, MailOpen, MoreHorizontal,
-  Paperclip, Download, ChevronLeft, AlertTriangle, Archive
+  Paperclip, Download, ChevronLeft, AlertTriangle, Inbox, RotateCcw,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
@@ -13,7 +13,7 @@ import {
 import { useEmailStore } from '@/hooks/useEmailStore';
 import { useEmailActions } from '@/hooks/useEmailActions';
 import { useEmailMutations } from '@/hooks/useEmailMutations';
-import { getInitials, formatBytes } from '@/lib/index';
+import { getInitials, formatBytes, formatDateTime } from '@/lib/index';
 import type { Email } from '@/lib/index';
 import { fadeInUp } from '@/lib/motion';
 import { useToast } from '@/hooks/use-toast';
@@ -28,10 +28,13 @@ export function EmailView({ email }: EmailViewProps) {
   const { replyTo, forwardEmail } = useEmailActions();
   const { toast } = useToast();
 
+  const isInTrash = email.folder === 'trash';
+  const isInSpam = email.folder === 'spam';
+
   const handleDelete = async () => {
     await deleteEmail(email.id, email.folder);
     setSelectedEmail(null);
-    toast({ title: email.folder === 'trash' ? 'Permanently deleted' : 'Moved to Trash' });
+    toast({ title: isInTrash ? 'Permanently deleted' : 'Moved to Trash' });
   };
 
   const handleSpam = async () => {
@@ -40,10 +43,22 @@ export function EmailView({ email }: EmailViewProps) {
     toast({ title: 'Marked as spam' });
   };
 
-  const handleArchive = async () => {
-    await moveToFolder(email.id, 'trash');
+  const handleNotSpam = async () => {
+    await moveToFolder(email.id, 'inbox');
     setSelectedEmail(null);
-    toast({ title: 'Email archived' });
+    toast({ title: 'Moved back to Inbox' });
+  };
+
+  const handleRestore = async () => {
+    // Outgoing mail in trash should restore to sent; everything else to inbox.
+    const target = email.from && email.to && email.from !== ''
+      // Heuristic: an outbound trash item has the user as sender. We default
+      // to inbox; users can manually move to sent if needed.
+      ? 'inbox' as const
+      : 'inbox' as const;
+    await moveToFolder(email.id, target);
+    setSelectedEmail(null);
+    toast({ title: 'Restored to Inbox' });
   };
 
   return (
@@ -80,9 +95,16 @@ export function EmailView({ email }: EmailViewProps) {
         >
           <Star className={`w-4 h-4 lg:w-3.5 lg:h-3.5 ${email.starred ? 'fill-foreground' : ''}`} />
         </Button>
-        <Button variant="ghost" size="sm" onClick={handleDelete} className="text-muted-foreground hover:text-destructive" aria-label="Delete">
-          <Trash2 className="w-4 h-4 lg:w-3.5 lg:h-3.5" />
-        </Button>
+
+        {isInTrash ? (
+          <Button variant="ghost" size="sm" onClick={handleRestore} className="text-muted-foreground hover:text-foreground" aria-label="Restore to Inbox">
+            <RotateCcw className="w-4 h-4 lg:w-3.5 lg:h-3.5" />
+          </Button>
+        ) : (
+          <Button variant="ghost" size="sm" onClick={handleDelete} className="text-muted-foreground hover:text-destructive" aria-label="Delete">
+            <Trash2 className="w-4 h-4 lg:w-3.5 lg:h-3.5" />
+          </Button>
+        )}
 
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
@@ -94,12 +116,20 @@ export function EmailView({ email }: EmailViewProps) {
             <DropdownMenuItem onClick={() => void markUnread(email.id)}>
               <MailOpen className="w-3.5 h-3.5 mr-2" /> Mark as unread
             </DropdownMenuItem>
-            <DropdownMenuItem onClick={handleArchive}>
-              <Archive className="w-3.5 h-3.5 mr-2" /> Archive
-            </DropdownMenuItem>
-            <DropdownMenuItem onClick={handleSpam} className="text-destructive">
-              <AlertTriangle className="w-3.5 h-3.5 mr-2" /> Report spam
-            </DropdownMenuItem>
+            {isInSpam ? (
+              <DropdownMenuItem onClick={handleNotSpam}>
+                <Inbox className="w-3.5 h-3.5 mr-2" /> Not spam — move to Inbox
+              </DropdownMenuItem>
+            ) : (
+              <DropdownMenuItem onClick={handleSpam} className="text-destructive">
+                <AlertTriangle className="w-3.5 h-3.5 mr-2" /> Report spam
+              </DropdownMenuItem>
+            )}
+            {isInTrash && (
+              <DropdownMenuItem onClick={handleDelete} className="text-destructive">
+                <Trash2 className="w-3.5 h-3.5 mr-2" /> Delete permanently
+              </DropdownMenuItem>
+            )}
           </DropdownMenuContent>
         </DropdownMenu>
       </div>
@@ -126,7 +156,7 @@ export function EmailView({ email }: EmailViewProps) {
               <div className="text-xs text-muted-foreground mt-0.5 space-y-0.5">
                 <p>To: {email.to.join(', ')}</p>
                 {email.cc && email.cc.length > 0 && <p>CC: {email.cc.join(', ')}</p>}
-                <p className="pt-1">{new Date(email.date).toLocaleString([], { dateStyle: 'full', timeStyle: 'short' })}</p>
+                <p className="pt-1">{formatDateTime(email.date)}</p>
               </div>
             </div>
           </div>

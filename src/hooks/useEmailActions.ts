@@ -4,6 +4,7 @@ import { useEmailStore } from '@/hooks/useEmailStore';
 import { useAuth } from '@/hooks/useAuth';
 import { useAccounts } from '@/hooks/useAccounts';
 import { mailApi, emailsApi, aliasesApi } from '@/api/index';
+import { formatDateTime } from '@/lib/index';
 import type { Email, ComposeData } from '@/lib/index';
 
 interface SendEmailResult {
@@ -98,7 +99,7 @@ export function useEmailActions() {
     openCompose({
       to: email.from,
       subject: email.subject.startsWith('Re:') ? email.subject : `Re: ${email.subject}`,
-      body: `\n\n--- Original message ---\nFrom: ${email.fromName} <${email.from}>\nDate: ${new Date(email.date).toLocaleString()}\n\n${email.bodyText}`,
+      body: `\n\n--- Original message ---\nFrom: ${email.fromName} <${email.from}>\nDate: ${formatDateTime(email.date)}\n\n${email.bodyText}`,
       fromAliasId,
     });
   }, [openCompose, accounts]);
@@ -106,7 +107,7 @@ export function useEmailActions() {
   const forwardEmail = useCallback((email: Email) => {
     openCompose({
       subject: email.subject.startsWith('Fwd:') ? email.subject : `Fwd: ${email.subject}`,
-      body: `\n\n--- Forwarded message ---\nFrom: ${email.fromName} <${email.from}>\nDate: ${new Date(email.date).toLocaleString()}\n\n${email.bodyText}`,
+      body: `\n\n--- Forwarded message ---\nFrom: ${email.fromName} <${email.from}>\nDate: ${formatDateTime(email.date)}\n\n${email.bodyText}`,
     });
   }, [openCompose]);
 

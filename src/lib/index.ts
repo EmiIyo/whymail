@@ -3,6 +3,8 @@ export const ROUTE_PATHS = {
   LOGIN: '/login',
   CHANGE_PASSWORD: '/change-password',
   ADMIN: '/admin',
+  TERMS: '/terms',
+  PRIVACY: '/privacy',
   ALL_INBOX: '/all-inbox',
   INBOX: '/',
   SENT: '/sent',
@@ -136,6 +138,7 @@ export function formatBytes(bytes: number): string {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
+/** Compact date for email lists: "14:32" today, "Wed" this week, "Apr 5" older. */
 export function formatEmailDate(iso: string): string {
   const date = new Date(iso);
   const now = new Date();
@@ -144,6 +147,35 @@ export function formatEmailDate(iso: string): string {
   if (sameDay) return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
   if (diff < 7 * 24 * 3600 * 1000) return date.toLocaleDateString([], { weekday: 'short' });
   return date.toLocaleDateString([], { month: 'short', day: 'numeric' });
+}
+
+/** Full readable date+time for email detail headers, audit fields. */
+export function formatDateTime(iso: string | null | undefined): string {
+  if (!iso) return '—';
+  const date = new Date(iso);
+  return date.toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' });
+}
+
+/** Short date only: "Apr 26, 2026". */
+export function formatDate(iso: string | null | undefined): string {
+  if (!iso) return '—';
+  const date = new Date(iso);
+  return date.toLocaleDateString([], { dateStyle: 'medium' });
+}
+
+/** "5 minutes ago", "3 days ago", "Apr 26" beyond a week. */
+export function formatRelative(iso: string | null | undefined): string {
+  if (!iso) return '—';
+  const date = new Date(iso);
+  const diff = Date.now() - date.getTime();
+  const min = Math.floor(diff / 60_000);
+  if (min < 1) return 'just now';
+  if (min < 60) return `${min} min ago`;
+  const hr = Math.floor(min / 60);
+  if (hr < 24) return `${hr} hr ago`;
+  const day = Math.floor(hr / 24);
+  if (day < 7) return `${day} day${day === 1 ? '' : 's'} ago`;
+  return date.toLocaleDateString([], { dateStyle: 'medium' });
 }
 
 export function getInitials(name: string): string {

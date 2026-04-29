@@ -5,7 +5,7 @@ import {
 } from 'lucide-react';
 import { adminApi, domainsApi, domainAdminsApi } from '@/api/index';
 import { useToast } from '@/hooks/use-toast';
-import { ROUTE_PATHS } from '@/lib/index';
+import { ROUTE_PATHS, formatRelative } from '@/lib/index';
 import type { AdminUserRow } from '@/lib/index';
 
 type RoleFilter = 'all' | 'super' | 'coadmin' | 'enduser' | 'noaccess';
@@ -197,7 +197,7 @@ function UserRow({ user: u, onGrant, onResetPassword, isResetting }: UserRowProp
         <div className="flex items-center gap-2 mt-0.5 flex-wrap">
           <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded ${roleStyle}`}>{role}</span>
           {u.lastSignInAt ? (
-            <span className="text-[10px] text-black/40">Last seen {new Date(u.lastSignInAt).toLocaleDateString()}</span>
+            <span className="text-[10px] text-black/40">Last seen {formatRelative(u.lastSignInAt)}</span>
           ) : (
             <span className="text-[10px] text-black/40">Never signed in</span>
           )}

@@ -18,6 +18,8 @@ import LoginPage from "@/pages/LoginPage";
 import ResetPasswordPage from "@/pages/ResetPasswordPage";
 import ChangePasswordPage from "@/pages/ChangePasswordPage";
 import AdminDashboardPage from "@/pages/AdminDashboardPage";
+import TermsPage from "@/pages/TermsPage";
+import PrivacyPage from "@/pages/PrivacyPage";
 import NotFound from "./pages/not-found/Index";
 
 const queryClient = new QueryClient();
@@ -70,6 +72,8 @@ const App = () => (
           <Route path={ROUTE_PATHS.LOGIN} element={<LoginPage />} />
           <Route path={ROUTE_PATHS.RESET_PASSWORD} element={<ResetPasswordPage />} />
           <Route path={ROUTE_PATHS.CHANGE_PASSWORD} element={<AuthGuard><ChangePasswordPage /></AuthGuard>} />
+          <Route path={ROUTE_PATHS.TERMS} element={<TermsPage />} />
+          <Route path={ROUTE_PATHS.PRIVACY} element={<PrivacyPage />} />
           <Route path={ROUTE_PATHS.ALL_INBOX} element={<AppShell><AllInboxPage /></AppShell>} />
           <Route path={ROUTE_PATHS.INBOX} element={<AppShell><InboxPage /></AppShell>} />
           <Route path={ROUTE_PATHS.SENT} element={<AppShell><FolderPage folder="sent" title="Sent" emptyMessage="No sent emails." /></AppShell>} />

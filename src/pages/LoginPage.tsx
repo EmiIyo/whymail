@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { Eye, EyeOff, ArrowRight, Mail, Lock, User, AlertCircle, CheckCircle2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -101,15 +101,7 @@ export default function LoginPage() {
           </div>
           <div className="flex-1 flex flex-col justify-center">
             <h2 className="text-4xl font-bold text-white leading-tight mb-4">Your email.<br />Your domain.<br />Your rules.</h2>
-            <p className="text-white/50 text-base leading-relaxed">A full-featured webmail client with real IMAP & SMTP, custom domains, folders, search, and attachments.</p>
-          </div>
-          <div className="space-y-3 pb-2">
-            {['Custom domain email addresses', 'Real IMAP & SMTP connections', 'Compose with attachments', 'Search across all your mail'].map(f => (
-              <div key={f} className="flex items-center gap-3">
-                <div className="w-1.5 h-1.5 rounded-full bg-white/40 shrink-0" />
-                <span className="text-sm text-white/50">{f}</span>
-              </div>
-            ))}
+            <p className="text-white/50 text-base leading-relaxed">Self-hosted email for your own domains.</p>
           </div>
         </div>
       </div>
@@ -229,7 +221,10 @@ export default function LoginPage() {
               </Button>
               <Separator />
               <p className="text-xs text-center text-muted-foreground">
-                By signing up you agree to our <span className="underline cursor-pointer hover:text-foreground">Terms</span> and <span className="underline cursor-pointer hover:text-foreground">Privacy Policy</span>.
+                By signing up you agree to our{' '}
+                <Link to={ROUTE_PATHS.TERMS} className="underline hover:text-foreground">Terms</Link>{' '}
+                and{' '}
+                <Link to={ROUTE_PATHS.PRIVACY} className="underline hover:text-foreground">Privacy Policy</Link>.
               </p>
             </form>
           )}

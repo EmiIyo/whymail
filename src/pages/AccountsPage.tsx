@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Plus, Mail, Trash2, ToggleLeft, ToggleRight, Globe, KeyRound, X, AlertCircle, ShieldCheck, Pencil, AtSign, Shield } from 'lucide-react';
 import { accountsApi, domainsApi, aliasesApi, domainAdminsApi } from '@/api/index';
 import { useAuth } from '@/hooks/useAuth';
+import { formatRelative } from '@/lib/index';
 import type { EmailAccount } from '@/lib/index';
 
 interface NewMailboxForm {
@@ -164,7 +165,7 @@ export default function AccountsPage() {
           )}
           {acc.lastActivityAt && (
             <span className="text-xs text-black/30">
-              Last activity {new Date(acc.lastActivityAt).toLocaleString()}
+              Last activity {formatRelative(acc.lastActivityAt)}
             </span>
           )}
         </div>

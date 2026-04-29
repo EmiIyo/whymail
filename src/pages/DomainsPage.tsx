@@ -5,6 +5,7 @@ import { domainsApi, domainAdminsApi, type DomainCheckResult, type DomainVerifyR
 import { useAuth } from '@/hooks/useAuth';
 import { useSuperAdmin } from '@/hooks/useSuperAdmin';
 import { useToast } from '@/hooks/use-toast';
+import { formatDate } from '@/lib/index';
 import type { Domain, DomainAdmin } from '@/lib/index';
 
 export default function DomainsPage() {
@@ -25,8 +26,9 @@ export default function DomainsPage() {
   });
 
   const addMutation = useMutation({
-    mutationFn: (name: string) => domainsApi.create(name, user!.id),
+    mutationFn: (name: string) => domainsApi.create(name),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['domains'] }); setNewDomain(''); setShowAdd(false); },
+    onError: (err: Error) => toast({ title: 'Could not add domain', description: err.message, variant: 'destructive' }),
   });
 
   const deleteMutation = useMutation({
@@ -178,7 +180,7 @@ export default function DomainsPage() {
                     {domain.verified ? 'Verified' : domain.verificationStatus === 'failed' ? 'Failed' : 'Pending'}
                   </span>
                 </div>
-                <p className="text-xs text-black/30 mt-0.5">Added {new Date(domain.createdAt).toLocaleDateString()}</p>
+                <p className="text-xs text-black/30 mt-0.5">Added {formatDate(domain.createdAt)}</p>
               </button>
               <div className="flex items-center gap-2">
                 {!domain.verified && (
@@ -374,7 +376,7 @@ function AdminRow({ admin, roleLabel, canRemove, onRemove, isRemoving }: AdminRo
         </div>
         <div className="min-w-0">
           <p className="text-xs text-black/80 truncate">{display}</p>
-          <p className="text-[10px] text-black/40">{roleLabel}{admin.addedAt ? ` · added ${new Date(admin.addedAt).toLocaleDateString()}` : ''}</p>
+          <p className="text-[10px] text-black/40">{roleLabel}{admin.addedAt ? ` · added ${formatDate(admin.addedAt)}` : ''}</p>
         </div>
       </div>
       {canRemove && (
