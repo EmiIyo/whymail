@@ -6,6 +6,45 @@ export interface Env {
   MAX_RAW_BYTES?: string;   // Optional safety cap (default 25 MiB)
 }
 
+// Cloudflare Email Routing destination-verification: when any zone owner adds
+// inbound@whymail.cc as a destination, Cloudflare sends a verification email
+// containing a confirmation link. We auto-click that link so customers never
+// have to. Detection is conservative: sender must be an @cloudflare.com /
+// @notify.cloudflare.com address AND the body must contain a dash.cloudflare.com
+// link with /email/ in the path. False positives only result in a benign GET
+// to a hardcoded Cloudflare host, never to attacker-controlled URLs.
+const CF_VERIFY_SENDER_RE = /(@notify\.cloudflare\.(com|net)|@cloudflare\.com)$/i;
+const CF_VERIFY_LINK_RE = /https:\/\/dash\.cloudflare\.com\/[^\s"'<>]*email[^\s"'<>]*/gi;
+
+async function tryAutoVerifyDestination(
+  fromAddress: string,
+  subject: string,
+  text: string,
+  html: string,
+): Promise<boolean> {
+  const sender = fromAddress.toLowerCase();
+  if (!CF_VERIFY_SENDER_RE.test(sender)) return false;
+  // Subject heuristic kills most non-verification CF mail (notifications, alerts).
+  const subjectLower = subject.toLowerCase();
+  if (!subjectLower.includes('verify') && !subjectLower.includes('email routing')) return false;
+
+  const haystack = `${html}\n${text}`;
+  const matches = haystack.match(CF_VERIFY_LINK_RE);
+  if (!matches || matches.length === 0) return false;
+
+  // Pick the first link that points at dash.cloudflare.com — these are always
+  // verification confirmation URLs of the form /email/<token> or similar.
+  const link = matches[0].replace(/[)\].,;]+$/, '');
+  try {
+    const res = await fetch(link, { method: 'GET', redirect: 'follow' });
+    console.log(`auto-verify ${res.status} for ${link}`);
+    return true;
+  } catch (err) {
+    console.error('auto-verify fetch failed', err);
+    return false;
+  }
+}
+
 interface Address { address: string; name?: string | null }
 
 interface OutboundPayload {
@@ -86,6 +125,19 @@ export default {
     }
 
     const parsed = await PostalMime.parse(raw);
+
+    // Intercept Cloudflare destination-verification emails before forwarding.
+    // These are addressed to inbound@whymail.cc when a customer adds it as a
+    // destination on their own zone. Auto-clicking the link verifies the
+    // destination on their account so they don't have to.
+    const senderAddress = parsed.from?.address ?? message.from ?? '';
+    const handled = await tryAutoVerifyDestination(
+      senderAddress,
+      parsed.subject ?? '',
+      parsed.text ?? '',
+      parsed.html ?? '',
+    );
+    if (handled) return;
 
     const headerMessageId = message.headers.get('message-id');
     const messageId = (parsed.messageId || headerMessageId || `<${crypto.randomUUID()}@cf-worker>`).trim();

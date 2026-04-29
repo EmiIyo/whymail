@@ -1,12 +1,12 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Plus, Globe, CheckCircle, XCircle, Clock, Trash2, Copy, ChevronDown, ChevronUp, Users, X } from 'lucide-react';
+import { Plus, Globe, CheckCircle, XCircle, Clock, Trash2, Copy, ChevronDown, ChevronUp, Users, X, ExternalLink } from 'lucide-react';
 import { domainsApi, domainAdminsApi, type DomainCheckResult, type DomainVerifyResponse } from '@/api/index';
 import { useAuth } from '@/hooks/useAuth';
 import { useSuperAdmin } from '@/hooks/useSuperAdmin';
 import { useToast } from '@/hooks/use-toast';
 import { formatDate } from '@/lib/index';
-import type { Domain, DomainAdmin } from '@/lib/index';
+import type { Domain, DomainAdmin, DnsRecord } from '@/lib/index';
 
 export default function DomainsPage() {
   const { user } = useAuth();
@@ -93,15 +93,6 @@ export default function DomainsPage() {
     if (d.verificationStatus === 'failed') return <XCircle size={14} className="text-white/50" />;
     return <Clock size={14} className="text-white/40" />;
   };
-
-  const dnsRecords = (d: Domain) => [
-    { type: 'MX',   name: '@',                  value: '10 route1.mx.cloudflare.net',                                    note: 'Inbound via Cloudflare Email Routing' },
-    { type: 'MX',   name: '@',                  value: '10 route2.mx.cloudflare.net',                                    note: 'Inbound via Cloudflare Email Routing' },
-    { type: 'MX',   name: '@',                  value: '10 route3.mx.cloudflare.net',                                    note: 'Inbound via Cloudflare Email Routing' },
-    { type: 'TXT',  name: '@',                  value: 'v=spf1 include:amazonses.com ~all',                              note: 'Outbound SPF (Resend uses AWS SES under the hood)' },
-    { type: 'CNAME',name: `resend._domainkey`,  value: 'resend.com',                                                     note: 'DKIM for outbound (Resend will show the exact target when you verify the domain on resend.com)' },
-    { type: 'TXT',  name: '_dmarc',             value: `v=DMARC1; p=none; rua=mailto:dmarc@${d.name}`,                   note: 'Optional but recommended' },
-  ];
 
   return (
     <div className="h-full overflow-y-auto bg-white">
@@ -220,50 +211,14 @@ export default function DomainsPage() {
                   isAdding={addAdminMutation.isPending}
                   isRemoving={removeAdminMutation.isPending}
                 />
-                <div>
-                  <p className="text-xs font-medium text-black/60 mb-2">DNS Records — Add these in your Cloudflare DNS dashboard</p>
-                  <div className="space-y-2">
-                    {dnsRecords(domain).map((rec, i) => (
-                      <div key={i} className="bg-white border border-black/10 rounded-lg px-3 py-2">
-                        <div className="flex items-start gap-2 text-xs font-mono">
-                          <span className="text-black/40 w-14 shrink-0">{rec.type}</span>
-                          <span className="text-black/50 w-32 shrink-0 truncate">{rec.name}</span>
-                          <span className="flex-1 text-black/80 break-all">{rec.value}</span>
-                          <button
-                            onClick={() => copyText(rec.value, `${domain.id}-${i}`)}
-                            className="text-black/30 hover:text-black ml-1 shrink-0 transition-colors"
-                          >
-                            {copied === `${domain.id}-${i}` ? <CheckCircle size={12} /> : <Copy size={12} />}
-                          </button>
-                        </div>
-                        {rec.note && (
-                          <p className="text-[10px] text-black/40 mt-1 pl-16">{rec.note}</p>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                </div>
-
-                {verifyResults[domain.id] && (
-                  <div>
-                    <p className="text-xs font-medium text-black/60 mb-2">Last verification result</p>
-                    <div className="space-y-1.5">
-                      {verifyResults[domain.id].map((c) => (
-                        <div key={c.name} className="flex items-start gap-2 text-xs bg-white border border-black/10 rounded-lg px-3 py-2">
-                          {c.pass
-                            ? <CheckCircle size={12} className="text-emerald-600 mt-0.5 shrink-0" />
-                            : <XCircle size={12} className="text-red-500 mt-0.5 shrink-0" />}
-                          <div className="flex-1 min-w-0">
-                            <p className="font-medium text-black/80 uppercase tracking-wide text-[10px]">{c.name}</p>
-                            {c.message && <p className="text-black/60 mt-0.5">{c.message}</p>}
-                            {c.observed && <p className="text-black/40 mt-0.5 font-mono break-all">Observed: {c.observed}</p>}
-                            {!c.pass && <p className="text-black/40 mt-0.5 font-mono break-all">Expected: {c.expected}</p>}
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
+                <DomainSetupWizard
+                  domain={domain}
+                  checks={verifyResults[domain.id]}
+                  copiedKey={copied}
+                  onCopy={copyText}
+                  onVerify={() => verifyMutation.mutate(domain.id)}
+                  isVerifying={verifyMutation.isPending && verifyMutation.variables === domain.id}
+                />
               </div>
             )}
           </div>
@@ -389,6 +344,240 @@ function AdminRow({ admin, roleLabel, canRemove, onRemove, isRemoving }: AdminRo
           <X size={14} />
         </button>
       )}
+    </div>
+  );
+}
+
+// ─── Setup wizard ────────────────────────────────────────────────────────────
+// Walks the customer through: enabling Cloudflare Email Routing, adding DNS
+// records (SPF, DMARC, Resend DKIM), creating the catch-all routing rule,
+// and verifying. Records come from `domain.dnsRecords` (populated by the
+// create-domain edge function with real per-domain Resend values).
+
+interface WizardProps {
+  domain: Domain;
+  checks?: DomainCheckResult[];
+  copiedKey: string;
+  onCopy: (text: string, key: string) => void;
+  onVerify: () => void;
+  isVerifying: boolean;
+}
+
+function DomainSetupWizard({ domain, checks, copiedKey, onCopy, onVerify, isVerifying }: WizardProps) {
+  const records = domain.dnsRecords ?? [];
+  const recordsByKind = (kind: DnsRecord['kind']) => records.filter((r) => r.kind === kind);
+  const checkById = (id: string) => checks?.find((c) => c.id === id);
+
+  const mxRecords = recordsByKind('mx');
+  const spfRecords = recordsByKind('spf');
+  const dkimRecords = recordsByKind('dkim');
+  const dmarcRecords = recordsByKind('dmarc');
+
+  const stepStatus = (passed: boolean, anyChecks: boolean): 'done' | 'pending' | 'idle' => {
+    if (!anyChecks) return 'idle';
+    return passed ? 'done' : 'pending';
+  };
+
+  const mxOk = mxRecords.some((r) => checkById(r.id)?.pass);
+  const spfOk = spfRecords.every((r) => checkById(r.id)?.pass);
+  const dkimOk = dkimRecords.length === 0 || dkimRecords.some((r) => checkById(r.id)?.pass);
+  const dmarcOk = dmarcRecords.every((r) => checkById(r.id)?.pass);
+
+  return (
+    <div className="space-y-3">
+      <div className="flex items-center justify-between">
+        <p className="text-xs font-medium text-black/60">Setup steps</p>
+        <button
+          onClick={onVerify}
+          disabled={isVerifying}
+          className="text-xs bg-black text-white px-3 py-1.5 rounded-lg hover:bg-black/80 disabled:opacity-50 transition-colors flex items-center gap-1.5"
+        >
+          {isVerifying ? 'Checking…' : (
+            <>
+              <CheckCircle size={12} /> Verify now
+            </>
+          )}
+        </button>
+      </div>
+
+      {/* Step 1 — Cloudflare Email Routing */}
+      <WizardStep
+        n={1}
+        title="Enable Cloudflare Email Routing"
+        status={stepStatus(mxOk, !!checks)}
+        description={
+          <>Open <a href={`https://dash.cloudflare.com/?to=/:account/${domain.name}/email/routing`} target="_blank" rel="noreferrer" className="underline inline-flex items-center gap-1">your zone's Email Routing page <ExternalLink size={10} /></a> and click <b>Enable Email Routing</b>. Cloudflare auto-adds the MX records.</>
+        }
+        check={checkById(mxRecords[0]?.id)}
+      />
+
+      {/* Step 2 — SPF + DMARC */}
+      <WizardStep
+        n={2}
+        title="Add SPF and DMARC TXT records"
+        status={stepStatus(spfOk && dmarcOk, !!checks)}
+        description={<>In Cloudflare DNS, add these two TXT records on your zone:</>}
+      >
+        {[...spfRecords, ...dmarcRecords].map((rec) => (
+          <RecordRow
+            key={rec.id}
+            record={rec}
+            check={checkById(rec.id)}
+            copyKey={`${domain.id}-${rec.id}`}
+            copiedKey={copiedKey}
+            onCopy={onCopy}
+          />
+        ))}
+      </WizardStep>
+
+      {/* Step 3 — Resend DKIM */}
+      <WizardStep
+        n={3}
+        title="Add Resend DKIM records"
+        status={stepStatus(dkimOk, !!checks)}
+        description={
+          dkimRecords.length === 0
+            ? <span className="text-amber-700">Resend integration is not connected — DKIM records aren't available. Outbound mail will fail without these.</span>
+            : <>These are unique to your domain — copy each one carefully into Cloudflare DNS.</>
+        }
+      >
+        {dkimRecords.map((rec) => (
+          <RecordRow
+            key={rec.id}
+            record={rec}
+            check={checkById(rec.id)}
+            copyKey={`${domain.id}-${rec.id}`}
+            copiedKey={copiedKey}
+            onCopy={onCopy}
+          />
+        ))}
+      </WizardStep>
+
+      {/* Step 4 — Routing rule */}
+      <WizardStep
+        n={4}
+        title="Create catch-all routing rule"
+        status="idle"
+        description={
+          <>
+            In Cloudflare → <b>Email Routing → Routing rules → Catch-all address</b>, set the action to{' '}
+            <b>Send to an external address</b> with value <code className="font-mono bg-black/[0.04] px-1.5 py-0.5 rounded">inbound@whymail.cc</code>{' '}
+            and <b>enable</b> it.
+          </>
+        }
+      >
+        <div className="rounded-lg border border-amber-200 bg-amber-50/60 px-3 py-2 text-[11px] text-amber-900 leading-relaxed">
+          Cloudflare will email a verification link to <code className="font-mono bg-white/60 px-1 rounded">inbound@whymail.cc</code>.
+          WhyMail intercepts and auto-confirms it — you don't need to do anything else.
+        </div>
+      </WizardStep>
+
+      {/* Step 5 — Verify */}
+      <WizardStep
+        n={5}
+        title="Verify"
+        status={domain.verified ? 'done' : !!checks ? 'pending' : 'idle'}
+        description={
+          domain.verified
+            ? 'All required records are in place. You can now create mailboxes on this domain.'
+            : 'Click Verify above. DNS propagation can take 1–5 minutes; if a check fails, wait a bit and retry.'
+        }
+      />
+    </div>
+  );
+}
+
+// Pretty status icon for a wizard step.
+type StepStatus = 'done' | 'pending' | 'idle';
+function StatusBadge({ status }: { status: StepStatus }) {
+  if (status === 'done') return <CheckCircle size={14} className="text-emerald-600" />;
+  if (status === 'pending') return <XCircle size={14} className="text-amber-500" />;
+  return <Clock size={14} className="text-black/30" />;
+}
+
+interface WizardStepProps {
+  n: number;
+  title: string;
+  status: StepStatus;
+  description: React.ReactNode;
+  check?: DomainCheckResult;
+  children?: React.ReactNode;
+}
+
+function WizardStep({ n, title, status, description, check, children }: WizardStepProps) {
+  return (
+    <div className="bg-white border border-black/10 rounded-xl p-3.5">
+      <div className="flex items-start gap-3">
+        <div className="w-6 h-6 rounded-full bg-black/5 flex items-center justify-center text-[11px] font-semibold text-black/60 shrink-0">
+          {n}
+        </div>
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2 mb-1">
+            <p className="text-sm font-medium text-black">{title}</p>
+            <StatusBadge status={status} />
+          </div>
+          <div className="text-[11px] text-black/60 leading-relaxed">{description}</div>
+          {check?.message && status === 'pending' && (
+            <p className="text-[11px] text-amber-700 mt-1.5">⚠ {check.message}</p>
+          )}
+          {children && <div className="mt-2.5 space-y-1.5">{children}</div>}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+interface RecordRowProps {
+  record: DnsRecord;
+  check?: DomainCheckResult;
+  copyKey: string;
+  copiedKey: string;
+  onCopy: (text: string, key: string) => void;
+}
+
+function RecordRow({ record, check, copyKey, copiedKey, onCopy }: RecordRowProps) {
+  const passed = check?.pass;
+  const isHostCopied = copiedKey === `${copyKey}-host`;
+  const isValueCopied = copiedKey === `${copyKey}-value`;
+  return (
+    <div className={`rounded-lg border px-2.5 py-2 ${
+      passed === true ? 'border-emerald-200 bg-emerald-50/30'
+      : passed === false ? 'border-amber-200 bg-amber-50/30'
+      : 'border-black/10 bg-black/[0.02]'
+    }`}>
+      <div className="flex items-center gap-2 text-[10px] uppercase tracking-wide text-black/50 mb-1.5">
+        <span className="font-mono font-semibold">{record.type}</span>
+        {check && (
+          passed
+            ? <span className="text-emerald-700 normal-case">verified</span>
+            : <span className="text-amber-700 normal-case">{check.message ?? 'not found'}</span>
+        )}
+      </div>
+      <div className="grid grid-cols-[60px_1fr_auto] gap-2 items-center text-xs font-mono">
+        <span className="text-black/40">Name</span>
+        <span className="text-black/80 break-all">{record.name}</span>
+        <button
+          onClick={() => onCopy(record.name, `${copyKey}-host`)}
+          className="text-black/30 hover:text-black p-1 rounded transition-colors"
+          title="Copy name"
+        >
+          {isHostCopied ? <CheckCircle size={11} /> : <Copy size={11} />}
+        </button>
+
+        <span className="text-black/40">Value</span>
+        <span className="text-black/80 break-all">
+          {record.priority !== undefined && <span className="text-black/40 mr-1">{record.priority}</span>}
+          {record.value}
+        </span>
+        <button
+          onClick={() => onCopy(record.value, `${copyKey}-value`)}
+          className="text-black/30 hover:text-black p-1 rounded transition-colors"
+          title="Copy value"
+        >
+          {isValueCopied ? <CheckCircle size={11} /> : <Copy size={11} />}
+        </button>
+      </div>
+      {record.note && <p className="text-[10px] text-black/40 mt-1.5">{record.note}</p>}
     </div>
   );
 }

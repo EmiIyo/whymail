@@ -1,5 +1,5 @@
 import { supabase } from '@/lib/supabase';
-import type { Email, Domain, DomainAdmin, EmailAccount, MailboxAlias, AdminStats, AdminUserRow, Folder } from '@/lib/index';
+import type { Email, Domain, DomainAdmin, DnsRecord, EmailAccount, MailboxAlias, AdminStats, AdminUserRow, Folder } from '@/lib/index';
 
 // ─── Emails ──────────────────────────────────────────────────
 export const emailsApi = {
@@ -130,7 +130,8 @@ export const emailsApi = {
 
 // ─── Domains ─────────────────────────────────────────────────
 export interface DomainCheckResult {
-  name: 'mx' | 'spf' | 'dkim' | 'dmarc';
+  id: string;
+  kind: 'mx' | 'spf' | 'dkim' | 'dmarc' | 'routing';
   pass: boolean;
   observed: string | null;
   expected: string;
@@ -585,6 +586,7 @@ async function rowToEmail(row: Record<string, unknown>): Promise<Email> {
 function rowToDomain(row: Record<string, unknown>): Domain {
   const counts = row.email_accounts;
   const count = Array.isArray(counts) ? (counts[0] as Record<string, unknown>)?.count ?? 0 : 0;
+  const records = Array.isArray(row.dns_records) ? (row.dns_records as DnsRecord[]) : [];
   return {
     id: row.id as string,
     name: row.name as string,
@@ -597,6 +599,8 @@ function rowToDomain(row: Record<string, unknown>): Domain {
     ownerUserId: row.user_id as string,
     createdAt: row.created_at as string,
     accountCount: Number(count),
+    resendDomainId: (row.resend_domain_id as string | null) ?? null,
+    dnsRecords: records,
   };
 }
 

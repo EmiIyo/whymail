@@ -65,6 +65,18 @@ export interface EmailAccount {
   createdAt: string;
 }
 
+export type DnsRecordKind = 'mx' | 'spf' | 'dkim' | 'dmarc' | 'routing';
+
+export interface DnsRecord {
+  id: string;
+  kind: DnsRecordKind;
+  type: string;          // 'MX' | 'TXT' | 'CNAME' | 'EMAIL_ROUTING'
+  name: string;          // host (relative to zone) or '@'
+  value: string;
+  priority?: number;
+  note?: string;
+}
+
 export interface Domain {
   id: string;
   name: string;
@@ -77,6 +89,8 @@ export interface Domain {
   ownerUserId: string;
   createdAt: string;
   accountCount: number;
+  resendDomainId: string | null;
+  dnsRecords: DnsRecord[];
 }
 
 export interface DomainAdmin {
