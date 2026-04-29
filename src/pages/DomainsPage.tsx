@@ -411,37 +411,30 @@ function DomainSetupWizard({ domain, checks, copiedKey, onCopy, onVerify, isVeri
         check={checkById(mxRecords[0]?.id)}
       />
 
-      {/* Step 2 — SPF + DMARC */}
+      {/* Step 2 — Add all DNS records (SPF + DMARC + DKIM) */}
       <WizardStep
         n={2}
-        title="Add SPF and DMARC TXT records"
-        status={stepStatus(spfOk && dmarcOk, !!checks)}
-        description={<>In Cloudflare DNS, add these two TXT records on your zone:</>}
-      >
-        {[...spfRecords, ...dmarcRecords].map((rec) => (
-          <RecordRow
-            key={rec.id}
-            record={rec}
-            check={checkById(rec.id)}
-            copyKey={`${domain.id}-${rec.id}`}
-            copiedKey={copiedKey}
-            onCopy={onCopy}
-          />
-        ))}
-      </WizardStep>
-
-      {/* Step 3 — Resend DKIM */}
-      <WizardStep
-        n={3}
-        title="Add Resend DKIM records"
-        status={stepStatus(dkimOk, !!checks)}
+        title="Add DNS records"
+        status={stepStatus(spfOk && dmarcOk && dkimOk, !!checks)}
         description={
           dkimRecords.length === 0
             ? <span className="text-amber-700">Resend integration is not connected — DKIM records aren't available. Outbound mail will fail without these.</span>
-            : <>These are unique to your domain — copy each one carefully into Cloudflare DNS.</>
+            : <>Open Cloudflare DNS for your zone and add the records below. Each record's <b>Name</b> and <b>Value</b> have copy buttons.</>
         }
       >
-        {dkimRecords.map((rec) => (
+        <div className="flex flex-wrap gap-2 mb-1">
+          <a
+            href={`https://dash.cloudflare.com/?to=/:account/${domain.name}/dns/records`}
+            target="_blank"
+            rel="noreferrer"
+            className="inline-flex items-center gap-1.5 text-xs bg-black text-white px-3 py-1.5 rounded-lg hover:bg-black/80 transition-colors"
+          >
+            <ExternalLink size={11} />
+            Open Cloudflare DNS
+          </a>
+          <span className="text-[10px] text-black/40 self-center">Opens in a new tab — paste the values from below, then come back and click "Verify now".</span>
+        </div>
+        {[...spfRecords, ...dmarcRecords, ...dkimRecords].map((rec) => (
           <RecordRow
             key={rec.id}
             record={rec}
@@ -453,9 +446,9 @@ function DomainSetupWizard({ domain, checks, copiedKey, onCopy, onVerify, isVeri
         ))}
       </WizardStep>
 
-      {/* Step 4 — Routing rule */}
+      {/* Step 3 — Routing rule */}
       <WizardStep
-        n={4}
+        n={3}
         title="Create catch-all routing rule"
         status="idle"
         description={
@@ -466,15 +459,24 @@ function DomainSetupWizard({ domain, checks, copiedKey, onCopy, onVerify, isVeri
           </>
         }
       >
+        <a
+          href={`https://dash.cloudflare.com/?to=/:account/${domain.name}/email/routing/routes`}
+          target="_blank"
+          rel="noreferrer"
+          className="inline-flex items-center gap-1.5 text-xs bg-black text-white px-3 py-1.5 rounded-lg hover:bg-black/80 transition-colors w-fit"
+        >
+          <ExternalLink size={11} />
+          Open Cloudflare Email Routing
+        </a>
         <div className="rounded-lg border border-amber-200 bg-amber-50/60 px-3 py-2 text-[11px] text-amber-900 leading-relaxed">
           Cloudflare will email a verification link to <code className="font-mono bg-white/60 px-1 rounded">inbound@whymail.cc</code>.
           WhyMail intercepts and auto-confirms it — you don't need to do anything else.
         </div>
       </WizardStep>
 
-      {/* Step 5 — Verify */}
+      {/* Step 4 — Verify */}
       <WizardStep
-        n={5}
+        n={4}
         title="Verify"
         status={domain.verified ? 'done' : !!checks ? 'pending' : 'idle'}
         description={
