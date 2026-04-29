@@ -17,6 +17,7 @@ import SettingsPage from "@/pages/SettingsPage";
 import LoginPage from "@/pages/LoginPage";
 import ResetPasswordPage from "@/pages/ResetPasswordPage";
 import ChangePasswordPage from "@/pages/ChangePasswordPage";
+import AdminDashboardPage from "@/pages/AdminDashboardPage";
 import NotFound from "./pages/not-found/Index";
 
 const queryClient = new QueryClient();
@@ -79,6 +80,7 @@ const App = () => (
           <Route path={ROUTE_PATHS.DOMAINS} element={<AppShell><DomainsPage /></AppShell>} />
           <Route path={ROUTE_PATHS.ACCOUNTS} element={<AppShell><AccountsPage /></AppShell>} />
           <Route path={ROUTE_PATHS.SETTINGS} element={<AppShell><SettingsPage /></AppShell>} />
+          <Route path={ROUTE_PATHS.ADMIN} element={<AppShell><AdminDashboardPage /></AppShell>} />
           <Route path="*" element={<NotFound />} />
         </Routes>
         </AuthProvider>

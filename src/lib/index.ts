@@ -2,6 +2,7 @@
 export const ROUTE_PATHS = {
   LOGIN: '/login',
   CHANGE_PASSWORD: '/change-password',
+  ADMIN: '/admin',
   ALL_INBOX: '/all-inbox',
   INBOX: '/',
   SENT: '/sent',
@@ -90,6 +91,24 @@ export interface MailboxAlias {
   aliasEmail: string;
   displayName: string | null;
   createdAt: string;
+}
+
+export interface AdminStats {
+  totalUsers: number;
+  totalDomains: number;
+  totalMailboxes: number;
+  activeLast7Days: number;
+}
+
+export interface AdminUserRow {
+  id: string;
+  email: string;
+  createdAt: string | null;
+  lastSignInAt: string | null;
+  isSuperAdmin: boolean;
+  coAdminDomainIds: string[];
+  coAdminDomainNames: string[];
+  ownsMailbox: boolean;
 }
 
 export interface ComposeData {

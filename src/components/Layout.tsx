@@ -5,7 +5,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   Inbox, Send, FileText, AlertTriangle, Trash2, Search,
   Globe, Users, Settings, PenSquare, ChevronDown,
-  X, LogOut, Bell, MailsIcon, Plus
+  X, LogOut, Bell, MailsIcon, Plus, ShieldCheck
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
@@ -21,6 +21,7 @@ import { useEmailStore } from '@/hooks/useEmailStore';
 import { useAccounts } from '@/hooks/useAccounts';
 import { useUnreadCounts } from '@/hooks/useUnreadCounts';
 import { useIsDesktop } from '@/hooks/useMediaQuery';
+import { useSuperAdmin } from '@/hooks/useSuperAdmin';
 import { ROUTE_PATHS, getInitials } from '@/lib/index';
 import { useAuth } from '@/hooks/useAuth';
 import { domainsApi } from '@/api/index';
@@ -74,6 +75,7 @@ export function Layout({ children }: LayoutProps) {
   });
   const canManageDomains = domains.length > 0;
   const visibleManageNav = manageNav.filter((n) => !n.requiresDomainAdmin || canManageDomains);
+  const { isSuperAdmin } = useSuperAdmin();
 
   const showSidebar = isDesktop || sidebarOpen;
   const activeAccount = accounts.find(a => a.id === activeAccountId);
@@ -247,6 +249,30 @@ export function Layout({ children }: LayoutProps) {
           </div>
 
           <Separator className="my-2 bg-sidebar-border" />
+
+          {/* Platform — super admin only */}
+          {isSuperAdmin && (
+            <>
+              <div>
+                <p className="px-3 py-1 text-xs font-semibold uppercase tracking-widest text-sidebar-foreground/40">Platform</p>
+                <NavLink
+                  to={ROUTE_PATHS.ADMIN}
+                  className={({ isActive }) =>
+                    `flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm transition-all duration-150 mb-0.5 ${
+                      isActive
+                        ? 'bg-sidebar-primary/15 text-sidebar-primary font-semibold'
+                        : 'text-sidebar-foreground/75 hover:bg-sidebar-accent hover:text-sidebar-foreground'
+                    }`
+                  }
+                  onClick={() => setSidebarOpen(false)}
+                >
+                  <ShieldCheck className="w-4 h-4" />
+                  Admin Dashboard
+                </NavLink>
+              </div>
+              <Separator className="my-2 bg-sidebar-border" />
+            </>
+          )}
 
           {/* Management nav */}
           <div>

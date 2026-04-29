@@ -1,5 +1,5 @@
 import { supabase } from '@/lib/supabase';
-import type { Email, Domain, DomainAdmin, EmailAccount, MailboxAlias, Folder } from '@/lib/index';
+import type { Email, Domain, DomainAdmin, EmailAccount, MailboxAlias, AdminStats, AdminUserRow, Folder } from '@/lib/index';
 
 // ─── Emails ──────────────────────────────────────────────────
 export const emailsApi = {
@@ -385,6 +385,28 @@ export const aliasesApi = {
     });
     if (error) throw new Error(error.message);
     if (data?.error) throw new Error(data.error);
+  },
+};
+
+// ─── Admin (super-admin-only platform management) ────────────
+export const adminApi = {
+  async overview(): Promise<{ stats: AdminStats; users: AdminUserRow[] }> {
+    const { data, error } = await supabase.functions.invoke('admin-overview', { body: {} });
+    if (error) throw new Error(error.message);
+    if (data?.error) throw new Error(data.error);
+    return {
+      stats: data.stats as AdminStats,
+      users: (data.users as AdminUserRow[]) ?? [],
+    };
+  },
+
+  async resetUserPassword(userId: string, redirectUrl: string): Promise<{ sentTo: string; mode: 'mailbox' | 'native' }> {
+    const { data, error } = await supabase.functions.invoke('admin-reset-user-password', {
+      body: { userId, redirectUrl },
+    });
+    if (error) throw new Error(error.message);
+    if (data?.error) throw new Error(data.error);
+    return { sentTo: data.sentTo as string, mode: data.mode as 'mailbox' | 'native' };
   },
 };
 

@@ -307,7 +307,7 @@ export default function AccountsPage() {
                 type="text"
                 value={form.displayName}
                 onChange={(e) => setField('displayName', e.target.value)}
-                placeholder="Emrecan"
+                placeholder='e.g. "Petbook Support"'
                 className="w-full text-sm border border-black/20 rounded-lg px-3 py-2 outline-none focus:border-black bg-white"
               />
             </div>

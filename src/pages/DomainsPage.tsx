@@ -3,11 +3,13 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Plus, Globe, CheckCircle, XCircle, Clock, Trash2, Copy, ChevronDown, ChevronUp, Users, X } from 'lucide-react';
 import { domainsApi, domainAdminsApi, type DomainCheckResult, type DomainVerifyResponse } from '@/api/index';
 import { useAuth } from '@/hooks/useAuth';
+import { useSuperAdmin } from '@/hooks/useSuperAdmin';
 import { useToast } from '@/hooks/use-toast';
 import type { Domain, DomainAdmin } from '@/lib/index';
 
 export default function DomainsPage() {
   const { user } = useAuth();
+  const { isSuperAdmin } = useSuperAdmin();
   const qc = useQueryClient();
   const { toast } = useToast();
   const [showAdd, setShowAdd] = useState(false);
@@ -107,12 +109,14 @@ export default function DomainsPage() {
           <h1 className="text-base font-semibold text-black">Domains</h1>
           <p className="text-xs text-black/40 mt-0.5">Connect custom domains to send and receive email</p>
         </div>
-        <button
-          onClick={() => setShowAdd(true)}
-          className="flex items-center gap-2 bg-black text-white text-xs font-medium px-3 py-2 rounded-lg hover:bg-black/80 transition-colors"
-        >
-          <Plus size={14} /> Add Domain
-        </button>
+        {isSuperAdmin && (
+          <button
+            onClick={() => setShowAdd(true)}
+            className="flex items-center gap-2 bg-black text-white text-xs font-medium px-3 py-2 rounded-lg hover:bg-black/80 transition-colors"
+          >
+            <Plus size={14} /> Add Domain
+          </button>
+        )}
       </div>
 
       {/* Add domain form */}
