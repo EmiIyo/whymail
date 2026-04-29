@@ -434,9 +434,11 @@ function DomainSetupWizard({ domain, checks, copiedKey, onCopy, onVerify, isVeri
           </a>
           <span className="text-[10px] text-black/40 self-center">Opens in a new tab — paste the values from below, then come back and click "Verify now".</span>
         </div>
-        <div className="rounded-lg border border-blue-200 bg-blue-50/60 px-3 py-2 text-[11px] text-blue-900 leading-relaxed">
-          <b>Proxy must be OFF (DNS only / gray cloud)</b> for every record below. The orange-cloud proxy breaks DKIM and SPF lookups because it returns Cloudflare's IPs instead of the actual target. TXT records have no proxy option; on CNAMEs make sure the toggle is gray.
-        </div>
+        {[...spfRecords, ...dmarcRecords, ...dkimRecords].some((r) => r.type === 'CNAME') && (
+          <div className="rounded-lg border border-blue-200 bg-blue-50/60 px-3 py-2 text-[11px] text-blue-900 leading-relaxed">
+            <b>For CNAME records: proxy OFF (DNS only / gray cloud).</b> Orange-cloud proxy returns Cloudflare's IPs instead of the actual target and breaks DKIM verification.
+          </div>
+        )}
         {[...spfRecords, ...dmarcRecords, ...dkimRecords].map((rec) => (
           <RecordRow
             key={rec.id}
@@ -550,26 +552,29 @@ function RecordRow({ record, check, copyKey, copiedKey, onCopy }: RecordRowProps
       : passed === false ? 'border-amber-200 bg-amber-50/30'
       : 'border-black/10 bg-black/[0.02]'
     }`}>
-      <div className="flex items-center gap-2 text-[10px] uppercase tracking-wide text-black/50 mb-1.5">
-        <span className="font-mono font-semibold">{record.type}</span>
-        {check && (
-          passed
-            ? <span className="text-emerald-700 normal-case">verified</span>
-            : <span className="text-amber-700 normal-case">{check.message ?? 'not found'}</span>
-        )}
-      </div>
-      <div className="grid grid-cols-[60px_1fr_auto] gap-2 items-center text-xs font-mono">
+      {check && (
+        <div className="text-[10px] uppercase tracking-wide mb-1.5">
+          {passed
+            ? <span className="text-emerald-700">✓ verified</span>
+            : <span className="text-amber-700">{check.message ?? 'not found'}</span>}
+        </div>
+      )}
+      <div className="grid grid-cols-[64px_1fr_auto] gap-2 items-center text-xs font-mono">
+        <span className="text-black/40">Type</span>
+        <span className="text-black/80">{record.type}</span>
+        <span />
+
         <span className="text-black/40">Name</span>
         <span className="text-black/80 break-all">{record.name}</span>
         <button
           onClick={() => onCopy(record.name, `${copyKey}-host`)}
           className="text-black/30 hover:text-black p-1 rounded transition-colors"
-          title="Copy name"
+          title="Copy Name"
         >
           {isHostCopied ? <CheckCircle size={11} /> : <Copy size={11} />}
         </button>
 
-        <span className="text-black/40">Value</span>
+        <span className="text-black/40">Content</span>
         <span className="text-black/80 break-all">
           {record.priority !== undefined && <span className="text-black/40 mr-1">{record.priority}</span>}
           {record.value}
@@ -577,10 +582,14 @@ function RecordRow({ record, check, copyKey, copiedKey, onCopy }: RecordRowProps
         <button
           onClick={() => onCopy(record.value, `${copyKey}-value`)}
           className="text-black/30 hover:text-black p-1 rounded transition-colors"
-          title="Copy value"
+          title="Copy Content"
         >
           {isValueCopied ? <CheckCircle size={11} /> : <Copy size={11} />}
         </button>
+
+        <span className="text-black/40">TTL</span>
+        <span className="text-black/50">Auto</span>
+        <span />
       </div>
       {record.note && <p className="text-[10px] text-black/40 mt-1.5">{record.note}</p>}
     </div>
