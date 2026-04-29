@@ -434,6 +434,9 @@ function DomainSetupWizard({ domain, checks, copiedKey, onCopy, onVerify, isVeri
           </a>
           <span className="text-[10px] text-black/40 self-center">Opens in a new tab — paste the values from below, then come back and click "Verify now".</span>
         </div>
+        <div className="rounded-lg border border-blue-200 bg-blue-50/60 px-3 py-2 text-[11px] text-blue-900 leading-relaxed">
+          <b>Proxy must be OFF (DNS only / gray cloud)</b> for every record below. The orange-cloud proxy breaks DKIM and SPF lookups because it returns Cloudflare's IPs instead of the actual target. TXT records have no proxy option; on CNAMEs make sure the toggle is gray.
+        </div>
         {[...spfRecords, ...dmarcRecords, ...dkimRecords].map((rec) => (
           <RecordRow
             key={rec.id}
