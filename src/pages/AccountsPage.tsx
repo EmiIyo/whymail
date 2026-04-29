@@ -49,8 +49,12 @@ export default function AccountsPage() {
   });
 
   const myMailboxes = accounts.filter((a) => a.ownerUserId === user?.id);
+  // Domain admins (super admin or co-admin) should see every mailbox under
+  // their domains, not only the ones they personally created. The `domains`
+  // query is already RLS-filtered to admin-visible domains.
+  const adminDomainIds = new Set(domains.map((d) => d.id));
   const managedMailboxes = accounts.filter(
-    (a) => a.createdByUserId === user?.id && a.ownerUserId !== user?.id,
+    (a) => a.ownerUserId !== user?.id && a.domainId && adminDomainIds.has(a.domainId),
   );
 
   const selectedDomain = domains.find((d) => d.id === form.domainId);
