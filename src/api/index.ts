@@ -424,14 +424,6 @@ export const adminApi = {
     if (data?.error) throw new Error(data.error);
     return { sentTo: data.sentTo as string, mode: data.mode as 'mailbox' | 'native' };
   },
-
-  async setCanCreateDomains(userId: string, canCreateDomains: boolean): Promise<void> {
-    const { data, error } = await supabase.functions.invoke('admin-set-can-create-domains', {
-      body: { userId, canCreateDomains },
-    });
-    if (error) throw new Error(error.message);
-    if (data?.error) throw new Error(data.error);
-  },
 };
 
 // ─── Profiles ────────────────────────────────────────────────

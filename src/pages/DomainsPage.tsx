@@ -10,7 +10,7 @@ import type { Domain, DomainAdmin, DnsRecord } from '@/lib/index';
 
 export default function DomainsPage() {
   const { user } = useAuth();
-  const { canCreateDomains } = useSuperAdmin();
+  const { isSuperAdmin } = useSuperAdmin();
   const qc = useQueryClient();
   const { toast } = useToast();
   const [showAdd, setShowAdd] = useState(false);
@@ -102,7 +102,7 @@ export default function DomainsPage() {
           <h1 className="text-base font-semibold text-black">Domains</h1>
           <p className="text-xs text-black/40 mt-0.5">Connect custom domains to send and receive email</p>
         </div>
-        {canCreateDomains && (
+        {isSuperAdmin && (
           <button
             onClick={() => setShowAdd(true)}
             className="flex items-center gap-2 bg-black text-white text-xs font-medium px-3 py-2 rounded-lg hover:bg-black/80 transition-colors"
@@ -458,8 +458,9 @@ function DomainSetupWizard({ domain, checks, copiedKey, onCopy, onVerify, isVeri
         status="idle"
         description={
           <>
-            In Cloudflare → <b>Email Routing → Routing rules → Catch-all address</b>, set the action to{' '}
-            <b>Send to an external address</b> with value <code className="font-mono bg-black/[0.04] px-1.5 py-0.5 rounded">inbound@whymail.cc</code>{' '}
+            In Cloudflare → <b>Email Routing → Routes → Catch-all address</b>, set the action to{' '}
+            <b>Send to a Worker</b> with destination{' '}
+            <code className="font-mono bg-black/[0.04] px-1.5 py-0.5 rounded">whymail-email-worker</code>{' '}
             and <b>enable</b> it.
           </>
         }
@@ -473,10 +474,6 @@ function DomainSetupWizard({ domain, checks, copiedKey, onCopy, onVerify, isVeri
           <ExternalLink size={11} />
           Open Cloudflare Email Routing
         </a>
-        <div className="rounded-lg border border-amber-200 bg-amber-50/60 px-3 py-2 text-[11px] text-amber-900 leading-relaxed">
-          Cloudflare will email a verification link to <code className="font-mono bg-white/60 px-1 rounded">inbound@whymail.cc</code>.
-          WhyMail intercepts and auto-confirms it — you don't need to do anything else.
-        </div>
       </WizardStep>
 
       {/* Step 4 — Verify */}

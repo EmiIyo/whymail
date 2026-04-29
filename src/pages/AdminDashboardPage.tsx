@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
-  Users, Globe, Mail, Activity, Search, ShieldCheck, KeyRound, X, ChevronDown, GlobeLock,
+  Users, Globe, Mail, Activity, Search, ShieldCheck, KeyRound, X, ChevronDown,
 } from 'lucide-react';
 import { adminApi, domainsApi, domainAdminsApi } from '@/api/index';
 import { useToast } from '@/hooks/use-toast';
@@ -56,21 +56,6 @@ export default function AdminDashboardPage() {
     },
   });
 
-  const canCreateMutation = useMutation({
-    mutationFn: (vars: { user: AdminUserRow; next: boolean }) =>
-      adminApi.setCanCreateDomains(vars.user.id, vars.next),
-    onSuccess: (_data, vars) => {
-      qc.invalidateQueries({ queryKey: ['admin-overview'] });
-      qc.invalidateQueries({ queryKey: ['admin-permissions'] });
-      toast({
-        title: vars.next ? 'Domain creation granted' : 'Domain creation revoked',
-        description: vars.user.email,
-      });
-    },
-    onError: (err: Error) => {
-      toast({ title: 'Update failed', description: err.message, variant: 'destructive' });
-    },
-  });
 
   return (
     <div className="h-full overflow-y-auto bg-white">
@@ -135,14 +120,7 @@ export default function AdminDashboardPage() {
                 onResetPassword={() => {
                   if (window.confirm(`Send password reset to ${u.email}?`)) resetMutation.mutate(u);
                 }}
-                onToggleCanCreate={(next) => {
-                  const verb = next ? 'Allow' : 'Revoke';
-                  if (window.confirm(`${verb} domain creation for ${u.email}?`)) {
-                    canCreateMutation.mutate({ user: u, next });
-                  }
-                }}
                 isResetting={resetMutation.isPending && resetMutation.variables?.id === u.id}
-                isUpdatingPerm={canCreateMutation.isPending && canCreateMutation.variables?.user.id === u.id}
               />
             ))}
           </div>
@@ -191,12 +169,10 @@ interface UserRowProps {
   user: AdminUserRow;
   onGrant: () => void;
   onResetPassword: () => void;
-  onToggleCanCreate: (next: boolean) => void;
   isResetting: boolean;
-  isUpdatingPerm: boolean;
 }
 
-function UserRow({ user: u, onGrant, onResetPassword, onToggleCanCreate, isResetting, isUpdatingPerm }: UserRowProps) {
+function UserRow({ user: u, onGrant, onResetPassword, isResetting }: UserRowProps) {
   const role = u.isSuperAdmin
     ? 'Super admin'
     : u.coAdminDomainIds.length > 0
@@ -211,10 +187,6 @@ function UserRow({ user: u, onGrant, onResetPassword, onToggleCanCreate, isReset
       : u.ownsMailbox
         ? 'bg-black/5 text-black/60'
         : 'bg-amber-50 text-amber-700';
-
-  // Super admin always has the right; the toggle is only meaningful for others.
-  const canCreate = u.isSuperAdmin || u.canCreateDomains;
-  const showToggle = !u.isSuperAdmin;
 
   return (
     <div className="px-4 py-3 flex items-center gap-3">
@@ -231,11 +203,6 @@ function UserRow({ user: u, onGrant, onResetPassword, onToggleCanCreate, isReset
               {u.domainCount} domain{u.domainCount === 1 ? '' : 's'}
             </span>
           )}
-          {u.canCreateDomains && !u.isSuperAdmin && (
-            <span className="text-[10px] font-medium text-indigo-700 bg-indigo-50 px-1.5 py-0.5 rounded">
-              + can add domains
-            </span>
-          )}
           {u.lastSignInAt ? (
             <span className="text-[10px] text-black/40">Last seen {formatRelative(u.lastSignInAt)}</span>
           ) : (
@@ -244,18 +211,6 @@ function UserRow({ user: u, onGrant, onResetPassword, onToggleCanCreate, isReset
         </div>
       </div>
       <div className="flex items-center gap-1 shrink-0">
-        {showToggle && (
-          <button
-            onClick={() => onToggleCanCreate(!u.canCreateDomains)}
-            disabled={isUpdatingPerm}
-            className={`p-1.5 rounded transition-colors disabled:opacity-50 ${
-              canCreate ? 'text-indigo-600 hover:text-indigo-800' : 'text-black/40 hover:text-indigo-600'
-            }`}
-            title={u.canCreateDomains ? 'Revoke domain creation permission' : 'Allow this user to add domains'}
-          >
-            {u.canCreateDomains ? <Globe size={14} /> : <GlobeLock size={14} />}
-          </button>
-        )}
         {!u.isSuperAdmin && (
           <button
             onClick={onGrant}

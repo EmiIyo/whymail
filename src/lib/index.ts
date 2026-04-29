@@ -122,7 +122,6 @@ export interface AdminUserRow {
   createdAt: string | null;
   lastSignInAt: string | null;
   isSuperAdmin: boolean;
-  canCreateDomains: boolean;
   coAdminDomainIds: string[];
   coAdminDomainNames: string[];
   ownsMailbox: boolean;

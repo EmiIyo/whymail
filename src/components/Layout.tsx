@@ -73,11 +73,9 @@ export function Layout({ children }: LayoutProps) {
     queryFn: () => domainsApi.list(),
     enabled: !!user,
   });
-  const { isSuperAdmin, canCreateDomains } = useSuperAdmin();
-  // Show Domains nav if the user is an admin of any domain OR has been granted
-  // domain-creation permission (so they can add their first one).
-  const canManageDomains = domains.length > 0 || canCreateDomains;
+  const canManageDomains = domains.length > 0;
   const visibleManageNav = manageNav.filter((n) => !n.requiresDomainAdmin || canManageDomains);
+  const { isSuperAdmin } = useSuperAdmin();
 
   const showSidebar = isDesktop || sidebarOpen;
   const activeAccount = accounts.find(a => a.id === activeAccountId);
