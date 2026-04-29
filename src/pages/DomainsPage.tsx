@@ -406,7 +406,7 @@ function DomainSetupWizard({ domain, checks, copiedKey, onCopy, onVerify, isVeri
         title="Enable Cloudflare Email Routing"
         status={stepStatus(mxOk, !!checks)}
         description={
-          <>Open <a href={`https://dash.cloudflare.com/?to=/:account/${domain.name}/email/routing`} target="_blank" rel="noreferrer" className="underline inline-flex items-center gap-1">your zone's Email Routing page <ExternalLink size={10} /></a> and click <b>Enable Email Routing</b>. Cloudflare auto-adds the MX records.</>
+          <>Open <a href={`https://dash.cloudflare.com/?to=/:account/${domain.name}/email/routing/overview`} target="_blank" rel="noreferrer" className="underline inline-flex items-center gap-1">your zone's Email Routing page <ExternalLink size={10} /></a> and click <b>Enable Email Routing</b>. Cloudflare auto-adds the MX records.</>
         }
         check={checkById(mxRecords[0]?.id)}
       />
