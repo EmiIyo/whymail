@@ -10,7 +10,7 @@ import type { Domain, DomainAdmin } from '@/lib/index';
 
 export default function DomainsPage() {
   const { user } = useAuth();
-  const { isSuperAdmin } = useSuperAdmin();
+  const { canCreateDomains } = useSuperAdmin();
   const qc = useQueryClient();
   const { toast } = useToast();
   const [showAdd, setShowAdd] = useState(false);
@@ -111,7 +111,7 @@ export default function DomainsPage() {
           <h1 className="text-base font-semibold text-black">Domains</h1>
           <p className="text-xs text-black/40 mt-0.5">Connect custom domains to send and receive email</p>
         </div>
-        {isSuperAdmin && (
+        {canCreateDomains && (
           <button
             onClick={() => setShowAdd(true)}
             className="flex items-center gap-2 bg-black text-white text-xs font-medium px-3 py-2 rounded-lg hover:bg-black/80 transition-colors"
