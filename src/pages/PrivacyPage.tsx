@@ -34,7 +34,7 @@ export default function PrivacyPage() {
             <h2 className="text-base font-semibold">3. Third parties</h2>
             <ul className="list-disc pl-5 space-y-1">
               <li><strong>Cloudflare Email Routing</strong> handles inbound mail before forwarding it to our system.</li>
-              <li><strong>Resend</strong> delivers outbound mail and password reset notifications.</li>
+              <li><strong>ForwardEmail</strong> delivers outbound mail and password reset notifications.</li>
               <li><strong>Supabase</strong> hosts our database and authentication.</li>
             </ul>
             <p>We do not sell your data, and these providers process it solely to operate the service.</p>

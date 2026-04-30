@@ -131,7 +131,7 @@ export const emailsApi = {
 // ─── Domains ─────────────────────────────────────────────────
 export interface DomainCheckResult {
   id: string;
-  kind: 'mx' | 'spf' | 'dkim' | 'dmarc' | 'routing';
+  kind: 'mx' | 'spf' | 'dkim' | 'dmarc' | 'routing' | 'verification' | 'return_path';
   pass: boolean;
   observed: string | null;
   expected: string;

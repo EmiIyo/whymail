@@ -199,10 +199,10 @@ export default function SettingsPage() {
         {activeTab === 'server' && (
           <div className="border border-black/10 rounded-xl p-5">
             <h2 className="text-sm font-semibold text-black mb-2">Mail infrastructure</h2>
-            <p className="text-xs text-black/40 mb-4">Inbound is delivered by Cloudflare Email Routing into a Worker that webhook-posts to the Supabase receive-email function. Outbound is sent through Resend.</p>
+            <p className="text-xs text-black/40 mb-4">Inbound is delivered by Cloudflare Email Routing into a Worker that webhook-posts to the Supabase receive-email function. Outbound is sent through ForwardEmail.</p>
             <div className="p-4 bg-black/[0.02] rounded-lg space-y-1">
               <p className="text-xs font-mono text-black/60">Provider in: Cloudflare Email Routing</p>
-              <p className="text-xs font-mono text-black/60">Provider out: Resend (api.resend.com)</p>
+              <p className="text-xs font-mono text-black/60">Provider out: ForwardEmail (api.forwardemail.net)</p>
               <p className="text-xs font-mono text-black/60">Storage: Supabase Postgres + private Storage bucket</p>
             </div>
           </div>

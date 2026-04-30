@@ -46,7 +46,7 @@ export default function LoginPage() {
     }
     setLoading(true);
     // The endpoint silently handles both cases:
-    //   - Hosted mailbox -> token sent to its recovery email via Resend
+    //   - Hosted mailbox -> token sent to its recovery email via ForwardEmail
     //   - Plain auth user -> Supabase native reset link sent to the user's own email
     // It always responds OK so we don't leak whether the address exists.
     const redirectTo = `${window.location.origin}${ROUTE_PATHS.RESET_PASSWORD}`;

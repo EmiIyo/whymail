@@ -350,9 +350,10 @@ function AdminRow({ admin, roleLabel, canRemove, onRemove, isRemoving }: AdminRo
 
 // ─── Setup wizard ────────────────────────────────────────────────────────────
 // Walks the customer through: enabling Cloudflare Email Routing, adding DNS
-// records (SPF, DMARC, Resend DKIM), creating the catch-all routing rule,
-// and verifying. Records come from `domain.dnsRecords` (populated by the
-// create-domain edge function with real per-domain Resend values).
+// records (verification, SPF, DKIM, return-path, DMARC), creating the
+// catch-all routing rule, and verifying. Records come from `domain.dnsRecords`
+// (populated by the create-domain edge function with real per-domain
+// ForwardEmail values from POST /v1/domains).
 
 interface WizardProps {
   domain: Domain;
@@ -368,18 +369,27 @@ function DomainSetupWizard({ domain, checks, copiedKey, onCopy, onVerify, isVeri
   const recordsByKind = (kind: DnsRecord['kind']) => records.filter((r) => r.kind === kind);
   const checkById = (id: string) => checks?.find((c) => c.id === id);
 
-  // Cloudflare auto-adds the root MX records when Email Routing is enabled, so
-  // those don't need manual entry. Resend's return-path MX lives on the `send`
-  // subdomain and DOES need manual entry — split MX records by host.
+  // Cloudflare auto-adds the root MX records (route1/2/3.mx.cloudflare.net)
+  // when Email Routing is enabled — those don't need manual entry. ForwardEmail
+  // adds verification, DKIM, return-path CNAME, and SPF — those DO need manual entry.
   const allMxRecords = recordsByKind('mx');
   const cfMxRecords = allMxRecords.filter((r) => r.name === '@');
-  const resendMxRecords = allMxRecords.filter((r) => r.name !== '@');
+  const otherMxRecords = allMxRecords.filter((r) => r.name !== '@');
   const spfRecords = recordsByKind('spf');
   const dkimRecords = recordsByKind('dkim');
   const dmarcRecords = recordsByKind('dmarc');
+  const verificationRecords = recordsByKind('verification');
+  const returnPathRecords = recordsByKind('return_path');
 
   // Records that user must add manually in Cloudflare DNS (Step 2).
-  const manualRecords = [...spfRecords, ...dmarcRecords, ...dkimRecords, ...resendMxRecords];
+  const manualRecords = [
+    ...verificationRecords,
+    ...spfRecords,
+    ...dkimRecords,
+    ...returnPathRecords,
+    ...dmarcRecords,
+    ...otherMxRecords,
+  ];
 
   const stepStatus = (passed: boolean, anyChecks: boolean): 'done' | 'pending' | 'idle' => {
     if (!anyChecks) return 'idle';
@@ -390,7 +400,9 @@ function DomainSetupWizard({ domain, checks, copiedKey, onCopy, onVerify, isVeri
   const spfOk = spfRecords.every((r) => checkById(r.id)?.pass);
   const dkimOk = dkimRecords.length === 0 || dkimRecords.some((r) => checkById(r.id)?.pass);
   const dmarcOk = dmarcRecords.every((r) => checkById(r.id)?.pass);
-  const resendMxOk = resendMxRecords.every((r) => checkById(r.id)?.pass);
+  const verificationOk = verificationRecords.every((r) => checkById(r.id)?.pass);
+  const returnPathOk = returnPathRecords.every((r) => checkById(r.id)?.pass);
+  const manualOk = spfOk && dmarcOk && dkimOk && verificationOk && returnPathOk;
 
   return (
     <div className="space-y-3">
@@ -420,14 +432,14 @@ function DomainSetupWizard({ domain, checks, copiedKey, onCopy, onVerify, isVeri
         check={checkById(cfMxRecords[0]?.id)}
       />
 
-      {/* Step 2 — Add all DNS records (SPF + DMARC + DKIM + Resend return-path MX) */}
+      {/* Step 2 — Add all DNS records (verification + SPF + DKIM + return-path + DMARC) */}
       <WizardStep
         n={2}
         title="Add DNS records"
-        status={stepStatus(spfOk && dmarcOk && dkimOk && resendMxOk, !!checks)}
+        status={stepStatus(manualOk, !!checks)}
         description={
           dkimRecords.length === 0
-            ? <span className="text-amber-700">Resend integration is not connected — DKIM records aren't available. Outbound mail will fail without these.</span>
+            ? <span className="text-amber-700">ForwardEmail integration is not connected — DKIM records aren't available. Outbound mail will fail without these.</span>
             : <>Open Cloudflare DNS for your zone and add the records below. Each record's <b>Name</b> and <b>Content</b> have copy buttons.</>
         }
       >

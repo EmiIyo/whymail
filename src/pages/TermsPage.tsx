@@ -36,7 +36,7 @@ export default function TermsPage() {
 
           <section>
             <h2 className="text-base font-semibold">5. Service availability</h2>
-            <p>We aim for high availability but make no SLA guarantee. Mail delivery depends on third parties (Cloudflare for inbound, Resend for outbound) and may be delayed or rejected by them.</p>
+            <p>We aim for high availability but make no SLA guarantee. Mail delivery depends on third parties (Cloudflare for inbound, ForwardEmail for outbound) and may be delayed or rejected by them.</p>
           </section>
 
           <section>

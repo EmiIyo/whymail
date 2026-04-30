@@ -65,7 +65,7 @@ export interface EmailAccount {
   createdAt: string;
 }
 
-export type DnsRecordKind = 'mx' | 'spf' | 'dkim' | 'dmarc' | 'routing';
+export type DnsRecordKind = 'mx' | 'spf' | 'dkim' | 'dmarc' | 'routing' | 'verification' | 'return_path';
 
 export interface DnsRecord {
   id: string;
