@@ -175,8 +175,8 @@ export default function AccountsPage() {
         </div>
       </div>
       <div className="flex items-center gap-2">
-        {/* Aliases only available on for-self mailboxes (owner == creator) */}
-        {acc.ownerUserId === acc.createdByUserId && acc.ownerUserId === user?.id && (
+        {/* Aliases: visible to mailbox owner OR to domain admins of the mailbox's domain. */}
+        {(acc.ownerUserId === user?.id || (acc.domainId && adminDomainIds.has(acc.domainId))) && (
           <button
             onClick={() => setAliasTarget(acc)}
             className="p-1.5 text-black/40 hover:text-black rounded transition-colors"
