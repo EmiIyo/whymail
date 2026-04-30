@@ -349,11 +349,18 @@ function AdminRow({ admin, roleLabel, canRemove, onRemove, isRemoving }: AdminRo
 }
 
 // ─── Setup wizard ────────────────────────────────────────────────────────────
-// Walks the customer through: enabling Cloudflare Email Routing, adding DNS
-// records (verification, SPF, DKIM, return-path, DMARC), creating the
-// catch-all routing rule, and verifying. Records come from `domain.dnsRecords`
-// (populated by the create-domain edge function with real per-domain
-// ForwardEmail values from POST /v1/domains).
+// Architecture:
+//  - DNS records are auto-configured by the create-domain edge function via the
+//    Cloudflare API when adding a domain. Records come from `domain.dnsRecords`
+//    (populated with per-domain ForwardEmail DKIM/SPF/verification/return-path).
+//  - Inbound: Cloudflare Email Routing → Worker → Supabase webhook.
+//  - Outbound: ForwardEmail HTTP API. SMTP must be enabled per domain via a
+//    one-time consent click in ForwardEmail's dashboard (no API alternative).
+//
+// User-facing setup is therefore reduced to:
+//  1. Click through Cloudflare Email Routing's catch-all → Send to a Worker
+//  2. Click through ForwardEmail's Outbound SMTP setup form (TOS consent)
+//  3. Wait for ForwardEmail's per-domain admin review (~1-2 hours)
 
 interface WizardProps {
   domain: Domain;
@@ -369,26 +376,19 @@ function DomainSetupWizard({ domain, checks, copiedKey, onCopy, onVerify, isVeri
   const recordsByKind = (kind: DnsRecord['kind']) => records.filter((r) => r.kind === kind);
   const checkById = (id: string) => checks?.find((c) => c.id === id);
 
-  // Cloudflare auto-adds the root MX records (route1/2/3.mx.cloudflare.net)
-  // when Email Routing is enabled — those don't need manual entry. ForwardEmail
-  // adds verification, DKIM, return-path CNAME, and SPF — those DO need manual entry.
-  const allMxRecords = recordsByKind('mx');
-  const cfMxRecords = allMxRecords.filter((r) => r.name === '@');
-  const otherMxRecords = allMxRecords.filter((r) => r.name !== '@');
+  const cfMxRecords = recordsByKind('mx').filter((r) => r.name === '@');
   const spfRecords = recordsByKind('spf');
   const dkimRecords = recordsByKind('dkim');
   const dmarcRecords = recordsByKind('dmarc');
   const verificationRecords = recordsByKind('verification');
   const returnPathRecords = recordsByKind('return_path');
-
-  // Records that user must add manually in Cloudflare DNS (Step 2).
-  const manualRecords = [
+  const allDnsRecords = [
+    ...cfMxRecords,
     ...verificationRecords,
     ...spfRecords,
     ...dkimRecords,
     ...returnPathRecords,
     ...dmarcRecords,
-    ...otherMxRecords,
   ];
 
   const stepStatus = (passed: boolean, anyChecks: boolean): 'done' | 'pending' | 'idle' => {
@@ -402,12 +402,14 @@ function DomainSetupWizard({ domain, checks, copiedKey, onCopy, onVerify, isVeri
   const dmarcOk = dmarcRecords.every((r) => checkById(r.id)?.pass);
   const verificationOk = verificationRecords.every((r) => checkById(r.id)?.pass);
   const returnPathOk = returnPathRecords.every((r) => checkById(r.id)?.pass);
-  const manualOk = spfOk && dmarcOk && dkimOk && verificationOk && returnPathOk;
+  const dnsAllOk = mxOk && spfOk && dkimOk && verificationOk && returnPathOk && dmarcOk;
+
+  const [showRecords, setShowRecords] = useState(false);
 
   return (
     <div className="space-y-3">
       <div className="flex items-center justify-between">
-        <p className="text-xs font-medium text-black/60">Setup steps</p>
+        <p className="text-xs font-medium text-black/60">Setup checklist</p>
         <button
           onClick={onVerify}
           disabled={isVerifying}
@@ -421,68 +423,59 @@ function DomainSetupWizard({ domain, checks, copiedKey, onCopy, onVerify, isVeri
         </button>
       </div>
 
-      {/* Step 1 — Cloudflare Email Routing */}
+      {/* Step 1 — DNS records (auto-configured via Cloudflare API) */}
       <WizardStep
         n={1}
-        title="Enable Cloudflare Email Routing"
-        status={stepStatus(mxOk, !!checks)}
+        title="DNS records"
+        status={stepStatus(dnsAllOk, !!checks)}
         description={
-          <>Open <a href={`https://dash.cloudflare.com/?to=/:account/${domain.name}/email/routing/overview`} target="_blank" rel="noreferrer" className="underline inline-flex items-center gap-1">your zone's Email Routing page <ExternalLink size={10} /></a> and click <b>Enable Email Routing</b>. Cloudflare auto-adds the MX records.</>
-        }
-        check={checkById(cfMxRecords[0]?.id)}
-      />
-
-      {/* Step 2 — Add all DNS records (verification + SPF + DKIM + return-path + DMARC) */}
-      <WizardStep
-        n={2}
-        title="Add DNS records"
-        status={stepStatus(manualOk, !!checks)}
-        description={
-          dkimRecords.length === 0
-            ? <span className="text-amber-700">ForwardEmail integration is not connected — DKIM records aren't available. Outbound mail will fail without these.</span>
-            : <>Open Cloudflare DNS for your zone and add the records below. Each record's <b>Name</b> and <b>Content</b> have copy buttons.</>
+          dkimRecords.length === 0 ? (
+            <span className="text-amber-700">ForwardEmail integration not connected for this domain.</span>
+          ) : (
+            <>
+              {dnsAllOk ? (
+                <>All records auto-configured via the Cloudflare API. <button onClick={() => setShowRecords((v) => !v)} className="underline">{showRecords ? 'Hide' : 'Show'} records</button>.</>
+              ) : !checks ? (
+                <>{allDnsRecords.length} DNS records were auto-added when this domain was created. Click <b>Verify now</b> above to confirm propagation. <button onClick={() => setShowRecords((v) => !v)} className="underline">{showRecords ? 'Hide' : 'Show'} records</button>.</>
+              ) : (
+                <>Some records are missing or unverified. Below shows which. If you removed any, use <a href={`https://dash.cloudflare.com/?to=/:account/${domain.name}/dns/records`} target="_blank" rel="noreferrer" className="underline inline-flex items-center gap-1">Cloudflare DNS <ExternalLink size={9} /></a> to restore them.</>
+              )}
+            </>
+          )
         }
       >
-        <div className="flex flex-wrap gap-2 mb-1">
-          <a
-            href={`https://dash.cloudflare.com/?to=/:account/${domain.name}/dns/records`}
-            target="_blank"
-            rel="noreferrer"
-            className="inline-flex items-center gap-1.5 text-xs bg-black text-white px-3 py-1.5 rounded-lg hover:bg-black/80 transition-colors"
-          >
-            <ExternalLink size={11} />
-            Open Cloudflare DNS
-          </a>
-          <span className="text-[10px] text-black/40 self-center">Opens in a new tab — paste the values from below, then come back and click "Verify now".</span>
-        </div>
-        {manualRecords.some((r) => r.type === 'CNAME') && (
-          <div className="rounded-lg border border-blue-200 bg-blue-50/60 px-3 py-2 text-[11px] text-blue-900 leading-relaxed">
-            <b>For CNAME records: proxy OFF (DNS only / gray cloud).</b> Orange-cloud proxy returns Cloudflare's IPs instead of the actual target and breaks DKIM verification.
-          </div>
+        {(showRecords || (!!checks && !dnsAllOk)) && allDnsRecords.length > 0 && (
+          <>
+            {allDnsRecords.some((r) => r.type === 'CNAME') && (
+              <div className="rounded-lg border border-blue-200 bg-blue-50/60 px-3 py-2 text-[11px] text-blue-900 leading-relaxed">
+                <b>CNAME proxy must be OFF (DNS only / gray cloud).</b> Orange-cloud proxy breaks DKIM/return-path lookups.
+              </div>
+            )}
+            {allDnsRecords.map((rec) => (
+              <RecordRow
+                key={rec.id}
+                record={rec}
+                check={checkById(rec.id)}
+                copyKey={`${domain.id}-${rec.id}`}
+                copiedKey={copiedKey}
+                onCopy={onCopy}
+              />
+            ))}
+          </>
         )}
-        {manualRecords.map((rec) => (
-          <RecordRow
-            key={rec.id}
-            record={rec}
-            check={checkById(rec.id)}
-            copyKey={`${domain.id}-${rec.id}`}
-            copiedKey={copiedKey}
-            onCopy={onCopy}
-          />
-        ))}
       </WizardStep>
 
-      {/* Step 3 — Routing rule */}
+      {/* Step 2 — Cloudflare Email Routing catch-all rule */}
       <WizardStep
-        n={3}
-        title="Create catch-all routing rule"
+        n={2}
+        title="Cloudflare Email Routing → catch-all → Worker"
         status="idle"
         description={
           <>
-            In Cloudflare → <b>Email Routing → Routes → Catch-all address</b>, set the action to{' '}
+            In Cloudflare's Email Routing, set the <b>catch-all address</b> action to{' '}
             <b>Send to a Worker</b> with destination{' '}
-            <code className="font-mono bg-black/[0.04] px-1.5 py-0.5 rounded">whymail-email-worker</code>{' '}
-            and <b>enable</b> it.
+            <code className="font-mono bg-black/[0.04] px-1.5 py-0.5 rounded">whymail-email-worker</code>.
+            This routes inbound mail into WhyMail's database.
           </>
         }
       >
@@ -497,15 +490,39 @@ function DomainSetupWizard({ domain, checks, copiedKey, onCopy, onVerify, isVeri
         </a>
       </WizardStep>
 
-      {/* Step 4 — Verify */}
+      {/* Step 3 — ForwardEmail Outbound SMTP enable */}
+      <WizardStep
+        n={3}
+        title="Enable ForwardEmail Outbound SMTP"
+        status={domain.verified ? 'done' : 'pending'}
+        description={
+          <>
+            One-time consent on ForwardEmail's dashboard. Click the button below, complete the form,
+            then ForwardEmail will manually review (typically 1-2 hours) and enable outbound for this
+            domain. After approval, you can send mail from any mailbox under this domain.
+          </>
+        }
+      >
+        <a
+          href={`https://forwardemail.net/my-account/domains/${domain.name}/verify-smtp`}
+          target="_blank"
+          rel="noreferrer"
+          className="inline-flex items-center gap-1.5 text-xs bg-black text-white px-3 py-1.5 rounded-lg hover:bg-black/80 transition-colors w-fit"
+        >
+          <ExternalLink size={11} />
+          Open ForwardEmail SMTP setup
+        </a>
+      </WizardStep>
+
+      {/* Step 4 — Test send */}
       <WizardStep
         n={4}
-        title="Verify"
-        status={domain.verified ? 'done' : !!checks ? 'pending' : 'idle'}
+        title="Test send"
+        status={domain.verified ? 'done' : 'idle'}
         description={
           domain.verified
-            ? 'All required records are in place. You can now create mailboxes on this domain.'
-            : 'Click Verify above. DNS propagation can take 1–5 minutes; if a check fails, wait a bit and retry.'
+            ? 'DNS is verified. Once ForwardEmail approves Outbound SMTP (Step 3), you can compose a mail from any mailbox under this domain.'
+            : 'After Steps 2 and 3, click "Verify now" above. A green check on every step means you can send.'
         }
       />
     </div>
