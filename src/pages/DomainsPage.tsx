@@ -368,20 +368,29 @@ function DomainSetupWizard({ domain, checks, copiedKey, onCopy, onVerify, isVeri
   const recordsByKind = (kind: DnsRecord['kind']) => records.filter((r) => r.kind === kind);
   const checkById = (id: string) => checks?.find((c) => c.id === id);
 
-  const mxRecords = recordsByKind('mx');
+  // Cloudflare auto-adds the root MX records when Email Routing is enabled, so
+  // those don't need manual entry. Resend's return-path MX lives on the `send`
+  // subdomain and DOES need manual entry — split MX records by host.
+  const allMxRecords = recordsByKind('mx');
+  const cfMxRecords = allMxRecords.filter((r) => r.name === '@');
+  const resendMxRecords = allMxRecords.filter((r) => r.name !== '@');
   const spfRecords = recordsByKind('spf');
   const dkimRecords = recordsByKind('dkim');
   const dmarcRecords = recordsByKind('dmarc');
+
+  // Records that user must add manually in Cloudflare DNS (Step 2).
+  const manualRecords = [...spfRecords, ...dmarcRecords, ...dkimRecords, ...resendMxRecords];
 
   const stepStatus = (passed: boolean, anyChecks: boolean): 'done' | 'pending' | 'idle' => {
     if (!anyChecks) return 'idle';
     return passed ? 'done' : 'pending';
   };
 
-  const mxOk = mxRecords.some((r) => checkById(r.id)?.pass);
+  const mxOk = cfMxRecords.some((r) => checkById(r.id)?.pass);
   const spfOk = spfRecords.every((r) => checkById(r.id)?.pass);
   const dkimOk = dkimRecords.length === 0 || dkimRecords.some((r) => checkById(r.id)?.pass);
   const dmarcOk = dmarcRecords.every((r) => checkById(r.id)?.pass);
+  const resendMxOk = resendMxRecords.every((r) => checkById(r.id)?.pass);
 
   return (
     <div className="space-y-3">
@@ -408,18 +417,18 @@ function DomainSetupWizard({ domain, checks, copiedKey, onCopy, onVerify, isVeri
         description={
           <>Open <a href={`https://dash.cloudflare.com/?to=/:account/${domain.name}/email/routing/overview`} target="_blank" rel="noreferrer" className="underline inline-flex items-center gap-1">your zone's Email Routing page <ExternalLink size={10} /></a> and click <b>Enable Email Routing</b>. Cloudflare auto-adds the MX records.</>
         }
-        check={checkById(mxRecords[0]?.id)}
+        check={checkById(cfMxRecords[0]?.id)}
       />
 
-      {/* Step 2 — Add all DNS records (SPF + DMARC + DKIM) */}
+      {/* Step 2 — Add all DNS records (SPF + DMARC + DKIM + Resend return-path MX) */}
       <WizardStep
         n={2}
         title="Add DNS records"
-        status={stepStatus(spfOk && dmarcOk && dkimOk, !!checks)}
+        status={stepStatus(spfOk && dmarcOk && dkimOk && resendMxOk, !!checks)}
         description={
           dkimRecords.length === 0
             ? <span className="text-amber-700">Resend integration is not connected — DKIM records aren't available. Outbound mail will fail without these.</span>
-            : <>Open Cloudflare DNS for your zone and add the records below. Each record's <b>Name</b> and <b>Value</b> have copy buttons.</>
+            : <>Open Cloudflare DNS for your zone and add the records below. Each record's <b>Name</b> and <b>Content</b> have copy buttons.</>
         }
       >
         <div className="flex flex-wrap gap-2 mb-1">
@@ -434,12 +443,12 @@ function DomainSetupWizard({ domain, checks, copiedKey, onCopy, onVerify, isVeri
           </a>
           <span className="text-[10px] text-black/40 self-center">Opens in a new tab — paste the values from below, then come back and click "Verify now".</span>
         </div>
-        {[...spfRecords, ...dmarcRecords, ...dkimRecords].some((r) => r.type === 'CNAME') && (
+        {manualRecords.some((r) => r.type === 'CNAME') && (
           <div className="rounded-lg border border-blue-200 bg-blue-50/60 px-3 py-2 text-[11px] text-blue-900 leading-relaxed">
             <b>For CNAME records: proxy OFF (DNS only / gray cloud).</b> Orange-cloud proxy returns Cloudflare's IPs instead of the actual target and breaks DKIM verification.
           </div>
         )}
-        {[...spfRecords, ...dmarcRecords, ...dkimRecords].map((rec) => (
+        {manualRecords.map((rec) => (
           <RecordRow
             key={rec.id}
             record={rec}
