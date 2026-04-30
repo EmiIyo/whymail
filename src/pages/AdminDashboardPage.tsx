@@ -28,16 +28,23 @@ export default function AdminDashboardPage() {
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
-    return users.filter((u) => {
-      if (q && !u.email.toLowerCase().includes(q)) return false;
-      switch (roleFilter) {
-        case 'super':   return u.isSuperAdmin;
-        case 'coadmin': return !u.isSuperAdmin && u.coAdminDomainIds.length > 0;
-        case 'enduser': return !u.isSuperAdmin && u.coAdminDomainIds.length === 0 && u.ownsMailbox;
-        case 'noaccess':return !u.isSuperAdmin && u.coAdminDomainIds.length === 0 && !u.ownsMailbox;
-        default: return true;
-      }
-    });
+    return users
+      .filter((u) => {
+        if (q && !u.email.toLowerCase().includes(q)) return false;
+        switch (roleFilter) {
+          case 'super':   return u.isSuperAdmin;
+          case 'coadmin': return !u.isSuperAdmin && u.coAdminDomainIds.length > 0;
+          case 'enduser': return !u.isSuperAdmin && u.coAdminDomainIds.length === 0 && u.ownsMailbox;
+          case 'noaccess':return !u.isSuperAdmin && u.coAdminDomainIds.length === 0 && !u.ownsMailbox;
+          default: return true;
+        }
+      })
+      // Super admins always render first; secondary sort by email so the order
+      // is stable across reloads.
+      .sort((a, b) => {
+        if (a.isSuperAdmin !== b.isSuperAdmin) return a.isSuperAdmin ? -1 : 1;
+        return a.email.localeCompare(b.email);
+      });
   }, [users, search, roleFilter]);
 
   const resetMutation = useMutation({

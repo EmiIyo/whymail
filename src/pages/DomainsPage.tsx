@@ -348,19 +348,18 @@ function AdminRow({ admin, roleLabel, canRemove, onRemove, isRemoving }: AdminRo
   );
 }
 
-// ─── Setup wizard ────────────────────────────────────────────────────────────
-// Architecture:
-//  - DNS records are auto-configured by the create-domain edge function via the
-//    Cloudflare API when adding a domain. Records come from `domain.dnsRecords`
-//    (populated with per-domain ForwardEmail DKIM/SPF/verification/return-path).
-//  - Inbound: Cloudflare Email Routing → Worker → Supabase webhook.
-//  - Outbound: ForwardEmail HTTP API. SMTP must be enabled per domain via a
-//    one-time consent click in ForwardEmail's dashboard (no API alternative).
+// ─── Setup status panel ──────────────────────────────────────────────────────
+// Everything below is automated by the create-domain edge function:
+//  - DNS records (DKIM/SPF/DMARC/return-path/verification) written to Cloudflare
+//  - Cloudflare Email Routing enabled + catch-all rule set to whymail-email-worker
+//  - ForwardEmail domain registered + ignore_mx_check + verify-records + verify-smtp
 //
-// User-facing setup is therefore reduced to:
-//  1. Click through Cloudflare Email Routing's catch-all → Send to a Worker
-//  2. Click through ForwardEmail's Outbound SMTP setup form (TOS consent)
-//  3. Wait for ForwardEmail's per-domain admin review (~1-2 hours)
+// This panel is therefore a status dashboard, not a setup wizard. It surfaces:
+//  - Which records exist (Show records)
+//  - Whether each verify check passes (after the user clicks Verify now)
+//  - Deep links into Cloudflare/ForwardEmail for inspection or troubleshooting
+// The only time the user needs to act is if a check fails (DNS edited externally
+// or ForwardEmail flagged the domain for human review).
 
 interface WizardProps {
   domain: Domain;
@@ -423,7 +422,7 @@ function DomainSetupWizard({ domain, checks, copiedKey, onCopy, onVerify, isVeri
         </button>
       </div>
 
-      {/* Step 1 — DNS records (auto-configured via Cloudflare API) */}
+      {/* Step 1 — DNS records */}
       <WizardStep
         n={1}
         title="DNS records"
@@ -433,12 +432,10 @@ function DomainSetupWizard({ domain, checks, copiedKey, onCopy, onVerify, isVeri
             <span className="text-amber-700">ForwardEmail integration not connected for this domain.</span>
           ) : (
             <>
-              {dnsAllOk ? (
-                <>All records auto-configured via the Cloudflare API. <button onClick={() => setShowRecords((v) => !v)} className="underline">{showRecords ? 'Hide' : 'Show'} records</button>.</>
-              ) : !checks ? (
-                <>{allDnsRecords.length} DNS records were auto-added when this domain was created. Click <b>Verify now</b> above to confirm propagation. <button onClick={() => setShowRecords((v) => !v)} className="underline">{showRecords ? 'Hide' : 'Show'} records</button>.</>
-              ) : (
-                <>Some records are missing or unverified. Below shows which. If you removed any, use <a href={`https://dash.cloudflare.com/?to=/:account/${domain.name}/dns/records`} target="_blank" rel="noreferrer" className="underline inline-flex items-center gap-1">Cloudflare DNS <ExternalLink size={9} /></a> to restore them.</>
+              <b>Auto-configured</b> when this domain was added. WhyMail wrote {allDnsRecords.length} DNS records (DKIM, SPF, DMARC, return-path, verification) directly to your Cloudflare zone.{' '}
+              <button onClick={() => setShowRecords((v) => !v)} className="underline">{showRecords ? 'Hide' : 'Show'} records</button>.
+              {!!checks && !dnsAllOk && (
+                <span className="block mt-1 text-amber-700">Some records are missing/changed. Click <a href={`https://dash.cloudflare.com/?to=/:account/${domain.name}/dns/records`} target="_blank" rel="noreferrer" className="underline inline-flex items-center gap-1">Cloudflare DNS <ExternalLink size={9} /></a> to inspect or re-trigger Verify.</span>
               )}
             </>
           )
@@ -465,17 +462,18 @@ function DomainSetupWizard({ domain, checks, copiedKey, onCopy, onVerify, isVeri
         )}
       </WizardStep>
 
-      {/* Step 2 — Cloudflare Email Routing catch-all rule */}
+      {/* Step 2 — Cloudflare Email Routing (auto-configured by create-domain) */}
       <WizardStep
         n={2}
-        title="Cloudflare Email Routing → catch-all → Worker"
-        status="idle"
+        title="Inbound: Cloudflare Email Routing"
+        status="done"
         description={
           <>
-            In Cloudflare's Email Routing, set the <b>catch-all address</b> action to{' '}
-            <b>Send to a Worker</b> with destination{' '}
-            <code className="font-mono bg-black/[0.04] px-1.5 py-0.5 rounded">whymail-email-worker</code>.
-            This routes inbound mail into WhyMail's database.
+            <b>Auto-configured</b>. Email Routing is enabled, MX records are auto-locked
+            to <code className="font-mono bg-black/[0.04] px-1.5 py-0.5 rounded">route1/2/3.mx.cloudflare.net</code>,
+            and the catch-all rule sends every inbound message to{' '}
+            <code className="font-mono bg-black/[0.04] px-1.5 py-0.5 rounded">whymail-email-worker</code>{' '}
+            which posts it into your inbox.
           </>
         }
       >
@@ -490,16 +488,18 @@ function DomainSetupWizard({ domain, checks, copiedKey, onCopy, onVerify, isVeri
         </a>
       </WizardStep>
 
-      {/* Step 3 — ForwardEmail Outbound SMTP enable */}
+      {/* Step 3 — ForwardEmail Outbound SMTP (auto-verified during create-domain) */}
       <WizardStep
         n={3}
-        title="Enable ForwardEmail Outbound SMTP"
+        title="Outbound: ForwardEmail SMTP"
         status={domain.verified ? 'done' : 'pending'}
         description={
           <>
-            One-time consent on ForwardEmail's dashboard. Click the button below, complete the form,
-            then ForwardEmail will manually review (typically 1-2 hours) and enable outbound for this
-            domain. After approval, you can send mail from any mailbox under this domain.
+            <b>Auto-configured</b>. WhyMail registered this domain with ForwardEmail and called{' '}
+            <code className="font-mono bg-black/[0.04] px-1.5 py-0.5 rounded">verify-smtp</code> on
+            your behalf, which is the same backend check the dashboard's manual button runs. Most
+            domains are auto-approved instantly; a small fraction are queued for human review (1-2h).
+            If sending fails with "not approved for outbound SMTP", click below to nudge ForwardEmail.
           </>
         }
       >
@@ -507,22 +507,22 @@ function DomainSetupWizard({ domain, checks, copiedKey, onCopy, onVerify, isVeri
           href={`https://forwardemail.net/my-account/domains/${domain.name}/verify-smtp`}
           target="_blank"
           rel="noreferrer"
-          className="inline-flex items-center gap-1.5 text-xs bg-black text-white px-3 py-1.5 rounded-lg hover:bg-black/80 transition-colors w-fit"
+          className="inline-flex items-center gap-1.5 text-xs bg-black/5 text-black/70 px-3 py-1.5 rounded-lg hover:bg-black/10 transition-colors w-fit"
         >
           <ExternalLink size={11} />
-          Open ForwardEmail SMTP setup
+          Open on ForwardEmail
         </a>
       </WizardStep>
 
-      {/* Step 4 — Test send */}
+      {/* Step 4 — Compose a test */}
       <WizardStep
         n={4}
-        title="Test send"
+        title="Send a test"
         status={domain.verified ? 'done' : 'idle'}
         description={
           domain.verified
-            ? 'DNS is verified. Once ForwardEmail approves Outbound SMTP (Step 3), you can compose a mail from any mailbox under this domain.'
-            : 'After Steps 2 and 3, click "Verify now" above. A green check on every step means you can send.'
+            ? 'Open Compose, pick any mailbox under this domain, send to your personal address — the message lands in your inbox in seconds.'
+            : 'Once Step 3 turns green, send a test message to confirm.'
         }
       />
     </div>

@@ -46,7 +46,16 @@ export function EmailList({ emails, title, emptyMessage = 'No emails here.', onS
           initial="hidden"
           animate="visible"
         >
-          {emails.map(email => (
+          {emails.map(email => {
+            // Sent + drafts list the recipient instead of the sender — what the
+            // user actually wants to see when scanning their own outgoing mail.
+            const isOutbound = email.folder === 'sent' || email.folder === 'drafts';
+            const recipient = email.to[0] ?? '';
+            const displayName = isOutbound
+              ? (recipient || '(no recipient)')
+              : (email.fromName || email.from || '(unknown sender)');
+            const initialsFor = isOutbound ? recipient : (email.fromName || email.from);
+            return (
             <motion.div
               key={email.id}
               variants={staggerItem}
@@ -58,14 +67,18 @@ export function EmailList({ emails, title, emptyMessage = 'No emails here.', onS
               {/* Avatar — bigger on mobile for touch friendliness */}
               <Avatar className="w-10 h-10 lg:w-8 lg:h-8 shrink-0 mt-0.5">
                 <AvatarFallback className={`text-sm lg:text-xs font-semibold ${!email.read ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground'}`}>
-                  {getInitials(email.fromName)}
+                  {getInitials(initialsFor)}
                 </AvatarFallback>
               </Avatar>
 
               <div className="flex-1 min-w-0 overflow-hidden">
                 <div className="flex items-center justify-between gap-2 mb-0.5 overflow-hidden">
                   <span className={`text-[15px] lg:text-sm truncate min-w-0 flex-1 ${!email.read ? 'font-semibold text-foreground' : 'font-medium text-foreground/80'}`}>
-                    {email.fromName}
+                    {isOutbound && <span className="text-muted-foreground font-normal mr-1">To:</span>}
+                    {displayName}
+                    {isOutbound && email.to.length > 1 && (
+                      <span className="text-muted-foreground font-normal ml-1">+{email.to.length - 1}</span>
+                    )}
                   </span>
                   <div className="flex items-center gap-1.5 shrink-0 ml-1">
                     {email.attachments.length > 0 && <Paperclip className="w-3 h-3 text-muted-foreground" />}
@@ -92,7 +105,8 @@ export function EmailList({ emails, title, emptyMessage = 'No emails here.', onS
                 <div className="w-2 h-2 rounded-full bg-primary shrink-0 mt-2" />
               )}
             </motion.div>
-          ))}
+            );
+          })}
         </motion.div>
       )}
     </div>
