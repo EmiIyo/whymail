@@ -34,7 +34,9 @@ export default function AllInboxPage() {
 
   const getAccountBadge = (accountId: string) => {
     const acc = accounts.find(a => a.id === accountId);
-    return acc?.email.split('@')[0] ?? accountId.slice(0, 6);
+    // Full email so the user can see WHICH domain a message landed on, not
+    // just the local part (e.g. "admin@whymail.cc" vs the old "admin").
+    return acc?.email ?? accountId.slice(0, 6);
   };
 
   const unreadCount = emails.filter(e => !e.read).length;
@@ -86,8 +88,8 @@ export default function AllInboxPage() {
                     <span className="text-[10px] text-black/30 shrink-0">{formatEmailDate(email.date)}</span>
                   </div>
                   <p className={`text-xs truncate mb-1 ${email.read ? 'text-black/50' : 'text-black/80'}`}>{email.subject || '(no subject)'}</p>
-                  <div className="flex items-center gap-1.5">
-                    <span className="text-[10px] px-1.5 py-0.5 bg-black/5 text-black/40 rounded font-medium truncate max-w-[80px]">
+                  <div className="flex items-center gap-1.5 min-w-0">
+                    <span className="text-[10px] px-1.5 py-0.5 bg-black/5 text-black/50 rounded font-medium truncate min-w-0 max-w-full">
                       {getAccountBadge(email.accountId)}
                     </span>
                     {email.attachments && email.attachments.length > 0 && <Paperclip size={10} className="text-black/30" />}
