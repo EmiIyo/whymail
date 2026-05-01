@@ -1,116 +1,108 @@
 import { adminClient, jsonResponse, preflight, requireUser, UnauthorizedError } from '../_shared/http.ts';
 
-// Cloudflare Email Routing publishes these three MX hostnames as of 2024-2025.
-// Order doesn't matter for the check; any of them being present is enough.
 const CLOUDFLARE_MX_HOSTS = new Set([
   'route1.mx.cloudflare.net',
   'route2.mx.cloudflare.net',
   'route3.mx.cloudflare.net',
 ]);
 
-// Resend requires a CNAME-based DKIM record on this host. For the base case
-// we just check that at least one of the expected selectors resolves to a
-// Resend-signed value. Users can add their own selector record manually; we
-// keep the check lenient (any DKIM record under the expected selector counts).
-const RESEND_DKIM_SELECTOR = 'resend';
-const RESEND_SPF_INCLUDE = 'amazonses.com';
+type RecordKind = 'mx' | 'spf' | 'dkim' | 'dmarc' | 'routing' | 'verification' | 'return_path';
+
+interface StoredRecord {
+  id: string;
+  kind: RecordKind;
+  type: string;
+  name: string;
+  value: string;
+  priority?: number;
+}
 
 interface CheckResult {
-  name: 'mx' | 'spf' | 'dkim' | 'dmarc';
+  id: string;
+  kind: RecordKind;
   pass: boolean;
   observed: string | null;
   expected: string;
   message?: string;
 }
 
-async function resolveTxt(name: string): Promise<string[]> {
-  try {
-    const records = (await Deno.resolveDns(name, 'TXT')) as string[][];
-    return records.map((chunks) => chunks.join(''));
-  } catch {
-    return [];
-  }
-}
-
-async function resolveMx(name: string): Promise<Array<{ preference: number; exchange: string }>> {
-  try {
-    return (await Deno.resolveDns(name, 'MX')) as Array<{ preference: number; exchange: string }>;
-  } catch {
-    return [];
-  }
-}
-
-async function resolveCname(name: string): Promise<string[]> {
-  try {
-    return (await Deno.resolveDns(name, 'CNAME')) as string[];
-  } catch {
-    return [];
-  }
-}
-
 function normHost(host: string): string {
   return host.toLowerCase().replace(/\.$/, '');
 }
 
-async function checkMx(domain: string): Promise<CheckResult> {
-  const records = await resolveMx(domain);
-  const observed = records.map((r) => `${r.preference} ${normHost(r.exchange)}`).join('; ') || null;
-  const pass = records.some((r) => CLOUDFLARE_MX_HOSTS.has(normHost(r.exchange)));
-  return {
-    name: 'mx',
-    pass,
-    observed,
-    expected: [...CLOUDFLARE_MX_HOSTS].join(', '),
-    message: pass
-      ? undefined
-      : `MX must point to Cloudflare Email Routing (${[...CLOUDFLARE_MX_HOSTS].join(' / ')}).`,
-  };
+function qualifyName(host: string, domain: string): string {
+  if (host === '@' || host === '' || host === domain) return domain;
+  if (host.toLowerCase().endsWith(`.${domain.toLowerCase()}`)) return host;
+  return `${host}.${domain}`;
 }
 
-async function checkSpf(domain: string): Promise<CheckResult> {
-  const records = await resolveTxt(domain);
-  const spf = records.find((r) => r.startsWith('v=spf1')) ?? null;
-  const pass = !!spf && (spf.includes(`include:${RESEND_SPF_INCLUDE}`) || spf.includes('include:_spf.resend.com'));
-  return {
-    name: 'spf',
-    pass,
-    observed: spf,
-    expected: `v=spf1 include:${RESEND_SPF_INCLUDE} ~all`,
-    message: spf
-      ? (pass ? undefined : `SPF exists but is missing include:${RESEND_SPF_INCLUDE}.`)
-      : 'No SPF (TXT v=spf1) record found. Add the Resend-provided TXT record.',
-  };
+async function resolveTxt(name: string): Promise<string[]> {
+  try {
+    const records = (await Deno.resolveDns(name, 'TXT')) as string[][];
+    return records.map((chunks) => chunks.join(''));
+  } catch { return []; }
+}
+async function resolveMx(name: string): Promise<Array<{ preference: number; exchange: string }>> {
+  try { return (await Deno.resolveDns(name, 'MX')) as Array<{ preference: number; exchange: string }>; }
+  catch { return []; }
+}
+async function resolveCname(name: string): Promise<string[]> {
+  try { return (await Deno.resolveDns(name, 'CNAME')) as string[]; }
+  catch { return []; }
 }
 
-async function checkDkim(domain: string): Promise<CheckResult> {
-  const host = `${RESEND_DKIM_SELECTOR}._domainkey.${domain}`;
-  const txt = await resolveTxt(host);
-  const cname = await resolveCname(host);
-  const observed = txt[0] ?? (cname[0] ? `CNAME ${cname[0]}` : null);
-  // Resend currently uses a CNAME to resend.com; accept either form as long
-  // as the host resolves to something valid.
-  const pass = txt.some((t) => t.includes('v=DKIM1') || t.includes('p=')) || cname.length > 0;
-  return {
-    name: 'dkim',
-    pass,
-    observed,
-    expected: `CNAME ${RESEND_DKIM_SELECTOR}._domainkey.${domain} → resend.com`,
-    message: pass
-      ? undefined
-      : `No DKIM record found at ${host}. Add the CNAME that Resend gave you.`,
-  };
-}
+async function checkRecord(rec: StoredRecord, domain: string): Promise<CheckResult> {
+  const host = qualifyName(rec.name, domain);
+  const expected = rec.value;
 
-async function checkDmarc(domain: string): Promise<CheckResult> {
-  const records = await resolveTxt(`_dmarc.${domain}`);
-  const dmarc = records.find((r) => r.startsWith('v=DMARC1')) ?? null;
-  return {
-    name: 'dmarc',
-    pass: !!dmarc,
-    observed: dmarc,
-    expected: `v=DMARC1; p=none; rua=mailto:dmarc@${domain}`,
-    message: dmarc ? undefined : 'No DMARC record found (optional but recommended).',
-  };
+  if (rec.kind === 'routing') {
+    return { id: rec.id, kind: rec.kind, pass: true, observed: null, expected, message: 'Routing rule cannot be checked via DNS — confirm in Cloudflare Email Routing.' };
+  }
+
+  if (rec.type === 'MX') {
+    const records = await resolveMx(domain);
+    const observed = records.map((r) => `${r.preference} ${normHost(r.exchange)}`).join('; ') || null;
+    const want = normHost(expected);
+    const pass = records.some((r) => normHost(r.exchange) === want);
+    return { id: rec.id, kind: rec.kind, pass, observed, expected, message: pass ? undefined : `MX must include ${want}.` };
+  }
+
+  if (rec.type === 'TXT') {
+    const records = await resolveTxt(host);
+    if (rec.kind === 'spf') {
+      const spf = records.find((r) => r.startsWith('v=spf1')) ?? null;
+      // Pass if any of these recognized senders are included.
+      const pass = !!spf && (spf.includes('include:amazonses.com') || spf.includes('include:_spf.resend.com') || spf.includes('include:spf.forwardemail.net') || spf.includes('include:_spf.mx.cloudflare.net'));
+      return { id: rec.id, kind: rec.kind, pass, observed: spf, expected, message: spf ? (pass ? undefined : 'SPF exists but missing a recognized sender include.') : 'No SPF record found.' };
+    }
+    if (rec.kind === 'dmarc') {
+      const dmarc = records.find((r) => r.startsWith('v=DMARC1')) ?? null;
+      return { id: rec.id, kind: rec.kind, pass: !!dmarc, observed: dmarc, expected, message: dmarc ? undefined : 'No DMARC record (recommended).' };
+    }
+    if (rec.kind === 'verification') {
+      const verify = records.find((r) => r.includes('forward-email-site-verification=')) ?? null;
+      const pass = !!verify && verify.includes(expected.replace('forward-email-site-verification=', ''));
+      return { id: rec.id, kind: rec.kind, pass, observed: verify, expected, message: pass ? undefined : 'ForwardEmail verification TXT not found at root.' };
+    }
+    // Generic TXT (e.g. DKIM as TXT)
+    const observed = records[0] ?? null;
+    if (rec.kind === 'dkim') {
+      const dkim = records.find((r) => r.includes('v=DKIM1')) ?? null;
+      return { id: rec.id, kind: rec.kind, pass: !!dkim, observed: dkim, expected, message: dkim ? undefined : `No DKIM TXT at ${host}.` };
+    }
+    const pass = records.some((r) => r.includes(expected) || expected.includes(r));
+    return { id: rec.id, kind: rec.kind, pass, observed, expected };
+  }
+
+  if (rec.type === 'CNAME') {
+    const cname = await resolveCname(host);
+    const observed = cname[0] ?? null;
+    const want = normHost(expected);
+    const pass = cname.some((c) => normHost(c) === want);
+    return { id: rec.id, kind: rec.kind, pass, observed: observed ? `CNAME ${observed}` : null, expected, message: pass ? undefined : `CNAME at ${host} should resolve to ${want}.` };
+  }
+
+  return { id: rec.id, kind: rec.kind, pass: false, observed: null, expected, message: `Unknown record type ${rec.type}` };
 }
 
 Deno.serve(async (req: Request) => {
@@ -123,31 +115,46 @@ Deno.serve(async (req: Request) => {
     const { domainId } = (await req.json()) as { domainId?: string };
     if (!domainId) return jsonResponse({ error: 'domainId is required' }, 400);
 
-    const domainRes = await admin
-      .from('domains')
-      .select('id, user_id, name')
-      .eq('id', domainId)
-      .eq('user_id', user.id)
-      .maybeSingle();
+    const [{ data: isSuper }, domainRes] = await Promise.all([
+      admin.rpc('is_super_admin', { p_user_id: user.id }),
+      admin.from('domains').select('id, user_id, name, dns_records, resend_domain_id').eq('id', domainId).maybeSingle(),
+    ]);
     if (domainRes.error) throw domainRes.error;
     const domain = domainRes.data;
     if (!domain) return jsonResponse({ error: 'Domain not found' }, 404);
 
-    const checks = await Promise.all([
-      checkMx(domain.name),
-      checkSpf(domain.name),
-      checkDkim(domain.name),
-      checkDmarc(domain.name),
-    ]);
+    if (!isSuper) {
+      const adminRes = await admin.rpc('is_domain_admin', { p_domain_id: domainId, p_user_id: user.id });
+      if (adminRes.error) throw adminRes.error;
+      if (!adminRes.data) return jsonResponse({ error: 'Not authorized for this domain' }, 403);
+    }
 
-    // MX and DKIM are required for a working mailbox; SPF and DMARC are
-    // strongly recommended but not strictly required for delivery.
-    const required = checks.filter((c) => c.name === 'mx' || c.name === 'dkim');
-    const allRequiredPass = required.every((c) => c.pass);
-    const anyPass = checks.some((c) => c.pass);
+    const stored = (domain.dns_records ?? []) as StoredRecord[];
+    let recordsToCheck = stored.filter((r) => r && r.kind && r.kind !== 'routing' && r.id);
+    if (recordsToCheck.length === 0) {
+      recordsToCheck = [
+        { id: 'mx-1', kind: 'mx', type: 'MX', name: '@', value: 'route1.mx.cloudflare.net' },
+        { id: 'mx-2', kind: 'mx', type: 'MX', name: '@', value: 'route2.mx.cloudflare.net' },
+        { id: 'mx-3', kind: 'mx', type: 'MX', name: '@', value: 'route3.mx.cloudflare.net' },
+      ];
+    }
+
+    const checks = await Promise.all(recordsToCheck.map((r) => checkRecord(r, domain.name)));
+
+    // Required for outbound: DKIM + verification (if ForwardEmail). Required for inbound: MX.
+    const mxOk = checks.some((c) => c.kind === 'mx' && c.pass);
+    const dkimChecks = checks.filter((c) => c.kind === 'dkim');
+    const dkimOk = dkimChecks.length === 0 ? true : dkimChecks.some((c) => c.pass);
+    const verifyChecks = checks.filter((c) => c.kind === 'verification');
+    const verifyOk = verifyChecks.length === 0 ? true : verifyChecks.every((c) => c.pass);
+    const spfOk = checks.find((c) => c.kind === 'spf')?.pass ?? true;
+    const dmarcOk = checks.find((c) => c.kind === 'dmarc')?.pass ?? true;
+
+    const allRequiredPass = mxOk && dkimOk && verifyOk;
     const verification_status: 'verified' | 'pending' | 'failed' =
-      allRequiredPass && checks.every((c) => c.pass) ? 'verified'
-      : (allRequiredPass || anyPass) ? 'pending'
+      (allRequiredPass && spfOk && dmarcOk) ? 'verified'
+      : allRequiredPass ? 'pending'
+      : (mxOk || dkimOk || verifyOk) ? 'pending'
       : 'failed';
 
     const updateRes = await admin
