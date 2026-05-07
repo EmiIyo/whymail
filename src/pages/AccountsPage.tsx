@@ -1,6 +1,6 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Plus, Mail, Trash2, ToggleLeft, ToggleRight, Globe, KeyRound, X, AlertCircle, ShieldCheck, Pencil, AtSign, Shield } from 'lucide-react';
+import { Plus, Mail, Trash2, ToggleLeft, ToggleRight, Globe, KeyRound, X, AlertCircle, ShieldCheck, Pencil, AtSign, Shield, Upload } from 'lucide-react';
 import { accountsApi, domainsApi, aliasesApi, domainAdminsApi } from '@/api/index';
 import { useAuth } from '@/hooks/useAuth';
 import { formatRelative } from '@/lib/index';
@@ -617,6 +617,62 @@ interface AliasesDialogProps {
   onClose: () => void;
 }
 
+interface BulkRow { localPart: string; displayName?: string }
+
+// Parse CSV / TSV / TXT into bulk-import rows. Auto-detects the delimiter
+// (comma / tab / semicolon — semicolon is Turkish Excel's default export).
+//
+// Supported per-row formats:
+//   info,Support Team       (local_part, display_name)
+//   sales                   (local_part only)
+//   hello@whymail.cc        (full email — only the local_part is kept)
+//   "name with, comma",X    (quoted values)
+// Skips a header row that starts with `email`/`local`/`alias`/`address`.
+function detectDelimiter(text: string): string {
+  // Pick the delimiter that occurs most often across the first ~10 lines.
+  // Tabs win over semicolons over commas on ties (more "structured" file).
+  const sample = text.split(/\r?\n/).slice(0, 10).join('\n');
+  const counts = {
+    '\t': (sample.match(/\t/g) ?? []).length,
+    ';': (sample.match(/;/g) ?? []).length,
+    ',': (sample.match(/,/g) ?? []).length,
+  };
+  if (counts['\t'] > 0 && counts['\t'] >= counts[';'] && counts['\t'] >= counts[',']) return '\t';
+  if (counts[';'] > 0 && counts[';'] >= counts[',']) return ';';
+  return ',';
+}
+
+function parseAliasCsv(text: string): BulkRow[] {
+  const rows: BulkRow[] = [];
+  const delim = detectDelimiter(text);
+  const lines = text.split(/\r?\n/);
+  let firstNonEmpty = true;
+  for (const line of lines) {
+    const trimmed = line.trim();
+    if (!trimmed) continue;
+    if (firstNonEmpty && /^(email|local[_-]?part|alias|address)\b/i.test(trimmed)) {
+      firstNonEmpty = false;
+      continue;
+    }
+    firstNonEmpty = false;
+    const cells: string[] = [];
+    let cur = '';
+    let inQ = false;
+    for (const ch of trimmed) {
+      if (ch === '"') { inQ = !inQ; continue; }
+      if (ch === delim && !inQ) { cells.push(cur); cur = ''; continue; }
+      cur += ch;
+    }
+    cells.push(cur);
+    let lp = (cells[0] ?? '').trim();
+    if (!lp) continue;
+    if (lp.includes('@')) lp = lp.split('@')[0];
+    const dn = (cells[1] ?? '').trim();
+    rows.push({ localPart: lp, displayName: dn || undefined });
+  }
+  return rows;
+}
+
 function AliasesDialog({ mailbox, onClose }: AliasesDialogProps) {
   const qc = useQueryClient();
   const domainPart = mailbox.email.split('@')[1] ?? '';
@@ -625,6 +681,9 @@ function AliasesDialog({ mailbox, onClose }: AliasesDialogProps) {
   const [error, setError] = useState<string | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editingName, setEditingName] = useState('');
+  const [bulkRows, setBulkRows] = useState<BulkRow[]>([]);
+  const [bulkStatus, setBulkStatus] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const { data: aliases = [], isLoading } = useQuery({
     queryKey: ['aliases', mailbox.id],
@@ -664,6 +723,88 @@ function AliasesDialog({ mailbox, onClose }: AliasesDialogProps) {
     onSuccess: () => qc.invalidateQueries({ queryKey: ['aliases', mailbox.id] }),
     onError: (err: Error) => setError(err.message),
   });
+
+  const bulkMutation = useMutation({
+    mutationFn: async () => {
+      let ok = 0;
+      let fail = 0;
+      const failures: string[] = [];
+      for (let i = 0; i < bulkRows.length; i++) {
+        const row = bulkRows[i];
+        setBulkStatus(`Importing ${i + 1}/${bulkRows.length}: ${row.localPart}@${domainPart}…`);
+        try {
+          await aliasesApi.add({ mailboxId: mailbox.id, localPart: row.localPart, displayName: row.displayName });
+          ok++;
+        } catch (err) {
+          fail++;
+          failures.push(`${row.localPart}: ${(err as Error).message}`);
+        }
+      }
+      return { ok, fail, failures };
+    },
+    onSuccess: ({ ok, fail, failures }) => {
+      qc.invalidateQueries({ queryKey: ['aliases', mailbox.id] });
+      const failHint = fail > 0 ? `\nFailures:\n${failures.slice(0, 5).join('\n')}${failures.length > 5 ? `\n…and ${failures.length - 5} more` : ''}` : '';
+      setBulkStatus(`Imported ${ok}, skipped/failed ${fail}.${failHint}`);
+      setBulkRows([]);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    },
+    onError: (err: Error) => setBulkStatus(`Import error: ${err.message}`),
+  });
+
+  const handleBulkFile = async (file: File) => {
+    setBulkStatus(null);
+    const name = file.name.toLowerCase();
+    const isExcel = name.endsWith('.xlsx') || name.endsWith('.xls');
+
+    if (isExcel) {
+      try {
+        // Lazy-load the xlsx parser only when an Excel file is picked, so the
+        // ~600KB library doesn't bloat the default bundle.
+        setBulkStatus('Loading Excel parser…');
+        const XLSX = await import('xlsx');
+        const buf = await file.arrayBuffer();
+        const wb = XLSX.read(buf, { type: 'array' });
+        const sheetName = wb.SheetNames[0];
+        if (!sheetName) {
+          setBulkStatus('Excel file has no sheets.');
+          return;
+        }
+        const sheet = wb.Sheets[sheetName];
+        const matrix = XLSX.utils.sheet_to_json<unknown[]>(sheet, { header: 1, defval: '', blankrows: false });
+        const rows: BulkRow[] = [];
+        let firstNonEmpty = true;
+        for (const row of matrix) {
+          const cells = row as unknown[];
+          const lpRaw = String(cells[0] ?? '').trim();
+          if (!lpRaw) continue;
+          if (firstNonEmpty && /^(email|local[_-]?part|alias|address)\b/i.test(lpRaw)) {
+            firstNonEmpty = false;
+            continue;
+          }
+          firstNonEmpty = false;
+          const lp = lpRaw.includes('@') ? lpRaw.split('@')[0] : lpRaw;
+          const dn = String(cells[1] ?? '').trim();
+          rows.push({ localPart: lp, displayName: dn || undefined });
+        }
+        setBulkRows(rows);
+        setBulkStatus(rows.length === 0 ? 'No valid rows found in sheet.' : null);
+      } catch (err) {
+        setBulkStatus(`Could not parse Excel file: ${(err as Error).message}`);
+      }
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const text = (e.target?.result as string) ?? '';
+      const parsed = parseAliasCsv(text);
+      setBulkRows(parsed);
+      if (parsed.length === 0) setBulkStatus('No valid rows found in file.');
+    };
+    reader.onerror = () => setBulkStatus('Could not read file.');
+    reader.readAsText(file);
+  };
 
   return (
     <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
@@ -770,6 +911,78 @@ function AliasesDialog({ mailbox, onClose }: AliasesDialogProps) {
             </button>
             <button onClick={onClose} className="text-xs text-black/50 px-2 hover:text-black">Done</button>
           </div>
+        </div>
+
+        <div className="border-t border-black/10 pt-3 space-y-2">
+          <div className="flex items-center justify-between">
+            <p className="text-xs font-semibold text-black">Bulk import</p>
+            <button
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              disabled={bulkMutation.isPending}
+              className="flex items-center gap-1.5 text-xs text-black/60 hover:text-black disabled:opacity-50"
+            >
+              <Upload size={12} />
+              Choose file…
+            </button>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept=".csv,.tsv,.txt,.xlsx,.xls,text/csv,text/tab-separated-values,text/plain,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel"
+              className="hidden"
+              onChange={(e) => {
+                const f = e.target.files?.[0];
+                if (f) handleBulkFile(f);
+              }}
+            />
+          </div>
+          <p className="text-[10px] text-black/40 leading-relaxed">
+            <span className="font-medium">.csv / .tsv / .txt / .xlsx</span> — auto-detects delimiter (comma, tab, semicolon). First column = localpart, second column = display name (optional). Domain auto-set to <span className="font-mono">@{domainPart}</span>.
+          </p>
+
+          {bulkRows.length > 0 && (
+            <div className="border border-emerald-200 rounded-lg p-2.5 bg-emerald-50/60 space-y-2">
+              <p className="text-xs text-emerald-900 font-medium">
+                Found {bulkRows.length} alias{bulkRows.length !== 1 ? 'es' : ''}
+              </p>
+              <ul className="text-[11px] text-black/65 space-y-0.5 max-h-24 overflow-y-auto font-mono">
+                {bulkRows.slice(0, 6).map((r, i) => (
+                  <li key={i} className="truncate">
+                    {r.localPart}@{domainPart}{r.displayName ? ` — ${r.displayName}` : ''}
+                  </li>
+                ))}
+                {bulkRows.length > 6 && (
+                  <li className="text-black/40 not-italic">… and {bulkRows.length - 6} more</li>
+                )}
+              </ul>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => bulkMutation.mutate()}
+                  disabled={bulkMutation.isPending}
+                  className="bg-emerald-700 text-white text-xs px-3 py-1.5 rounded-lg hover:bg-emerald-800 disabled:opacity-50"
+                >
+                  {bulkMutation.isPending ? 'Importing…' : `Import ${bulkRows.length}`}
+                </button>
+                <button
+                  onClick={() => {
+                    setBulkRows([]);
+                    setBulkStatus(null);
+                    if (fileInputRef.current) fileInputRef.current.value = '';
+                  }}
+                  disabled={bulkMutation.isPending}
+                  className="text-xs text-black/50 px-2 hover:text-black disabled:opacity-50"
+                >
+                  Clear
+                </button>
+              </div>
+            </div>
+          )}
+
+          {bulkStatus && (
+            <p className="text-[11px] text-black/60 whitespace-pre-line bg-black/[0.02] border border-black/10 rounded p-2">
+              {bulkStatus}
+            </p>
+          )}
         </div>
       </div>
     </div>
