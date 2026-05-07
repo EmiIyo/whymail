@@ -166,7 +166,8 @@ export default function LoginPage() {
                 <div className="relative">
                   <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                   <Input type="email" value={signInEmail} onChange={e => setSignInEmail(e.target.value)}
-                    className="pl-9 font-mono text-sm" placeholder="you@yourdomain.com" required />
+                    className="pl-9 font-mono text-sm" placeholder="you@yourdomain.com" required
+                    autoCapitalize="off" autoCorrect="off" spellCheck={false} />
                 </div>
               </div>
               <div>
@@ -195,7 +196,8 @@ export default function LoginPage() {
                 <Label className="text-xs text-muted-foreground mb-1.5 block">Email address</Label>
                 <div className="relative">
                   <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                  <Input type="email" value={signUpEmail} onChange={e => setSignUpEmail(e.target.value)} className="pl-9 font-mono text-sm" placeholder="The email your admin gave you" required />
+                  <Input type="email" value={signUpEmail} onChange={e => setSignUpEmail(e.target.value)} className="pl-9 font-mono text-sm" placeholder="The email your admin gave you" required
+                    autoCapitalize="off" autoCorrect="off" spellCheck={false} />
                 </div>
                 <p className="text-[11px] text-muted-foreground mt-1.5 leading-relaxed">
                   Use the email your admin set as your recovery / login address.

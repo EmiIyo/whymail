@@ -341,7 +341,19 @@ export const authApi = {
     const { data, error } = await supabase.functions.invoke('signup-redeem', {
       body: { recoveryEmail, inviteCode, newPassword },
     });
-    if (error) throw new Error(error.message);
+    // Supabase client wraps non-2xx responses in `error`. The body still
+    // contains our friendly message; try to extract it.
+    if (error) {
+      let friendly = error.message;
+      const ctx = (error as { context?: Response }).context;
+      if (ctx && typeof ctx.json === 'function') {
+        try {
+          const body = await ctx.json();
+          if (body?.error) friendly = body.error;
+        } catch { /* ignore — fall back to generic message */ }
+      }
+      throw new Error(friendly);
+    }
     if (data?.error) throw new Error(data.error);
   },
 };

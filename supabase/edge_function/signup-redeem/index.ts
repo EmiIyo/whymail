@@ -18,13 +18,28 @@ Deno.serve(async (req: Request) => {
   try {
     const payload = (await req.json()) as Payload;
     const recoveryEmail = (payload.recoveryEmail ?? '').trim().toLowerCase();
-    const inviteCode = (payload.inviteCode ?? '').trim();
+    // Aggressively normalize the invite code: drop any non-alphanumeric chars
+    // (handles invisible whitespace, NBSP, leading/trailing dots from copy-paste).
+    const rawInvite = (payload.inviteCode ?? '').trim();
+    const inviteCode = rawInvite.toLowerCase().replace(/[^a-z0-9]/g, '');
+    const expectedCode = INVITE_CODE.toLowerCase().replace(/[^a-z0-9]/g, '');
     const newPassword = payload.newPassword ?? '';
 
+    // Diagnostic logging (visible only in Supabase function logs, not to client).
+    console.log('signup-redeem attempt:', JSON.stringify({
+      recoveryEmail,
+      inviteCodeRaw: rawInvite,
+      inviteCodeNormalized: inviteCode,
+      inviteCodeBytes: Array.from(rawInvite).map((c) => c.charCodeAt(0)),
+      passwordLen: newPassword.length,
+    }));
+
     if (!EMAIL_RE.test(recoveryEmail)) return jsonResponse({ error: 'Invalid email format' }, 400);
-    if (inviteCode !== INVITE_CODE) return jsonResponse({ error: 'Invalid invite code' }, 400);
+    if (inviteCode !== expectedCode) {
+      return jsonResponse({ error: `Wrong invite code (got "${rawInvite}"). Ask your admin for the correct one.` }, 400);
+    }
     if (newPassword.length < MIN_PASSWORD_LEN) {
-      return jsonResponse({ error: `Password must be at least ${MIN_PASSWORD_LEN} characters` }, 400);
+      return jsonResponse({ error: `Password must be at least ${MIN_PASSWORD_LEN} characters (got ${newPassword.length})` }, 400);
     }
 
     // Look up pending mailboxes for this recovery email. must_change_password=true
@@ -32,13 +47,16 @@ Deno.serve(async (req: Request) => {
     // so a leaked invite code can never reset an already-activated user's password.
     const accountsRes = await admin
       .from('email_accounts')
-      .select('id, owner_user_id, must_change_password')
-      .eq('recovery_email', recoveryEmail)
-      .eq('must_change_password', true);
+      .select('id, owner_user_id, must_change_password, recovery_email')
+      .ilike('recovery_email', recoveryEmail);
     if (accountsRes.error) throw accountsRes.error;
-    const pending = accountsRes.data ?? [];
+    const allMatching = accountsRes.data ?? [];
+    if (allMatching.length === 0) {
+      return jsonResponse({ error: 'No mailbox is set up for this email. Double-check the email your admin gave you, or ask them to add you.' }, 404);
+    }
+    const pending = allMatching.filter((r) => r.must_change_password === true);
     if (pending.length === 0) {
-      return jsonResponse({ error: 'No pending invitation for this email. If you already have an account, sign in instead.' }, 404);
+      return jsonResponse({ error: 'This account is already activated. Use Sign in instead of Sign up.' }, 409);
     }
 
     // All pending mailboxes for the same recovery_email must share one owner_user_id
