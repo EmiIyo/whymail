@@ -119,7 +119,7 @@ export function Layout({ children }: LayoutProps) {
         <div className="flex items-center justify-between px-5 py-4 border-b border-sidebar-border min-w-[288px]">
           <div className="flex items-center gap-3">
             <img src="/icon.png" alt="WhyMail icon" className="w-9 h-9 rounded-lg object-contain shrink-0" />
-            <img src="/logo.png" alt="WhyMail" className="h-8 object-contain brightness-0 invert" />
+            <img src="/logo.png" alt="WhyMail" className="h-9 object-contain brightness-0 invert" />
           </div>
           <button
             className="lg:hidden p-1 rounded hover:bg-sidebar-accent text-sidebar-foreground/60"

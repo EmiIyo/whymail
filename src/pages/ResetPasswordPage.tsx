@@ -81,7 +81,7 @@ export default function ResetPasswordPage() {
       <div className="w-full max-w-[380px]">
         <div className="flex items-center gap-2.5 mb-8">
           <img src="/icon.png" alt="icon" className="w-8 h-8 object-contain" />
-          <img src="/logo.png" alt="WhyMail" className="h-6 object-contain" />
+          <img src="/logo.png" alt="WhyMail" className="h-8 object-contain" />
         </div>
 
         <h1 className="text-xl font-semibold mb-2">Reset your password</h1>

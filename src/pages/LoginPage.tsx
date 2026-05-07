@@ -105,7 +105,7 @@ export default function LoginPage() {
         <div className="relative z-10 flex flex-col h-full px-12 py-10">
           <div className="flex items-center gap-3">
             <img src="/icon.png" alt="icon" className="w-9 h-9 object-contain brightness-0 invert" />
-            <img src="/logo.png" alt="WhyMail" className="h-7 object-contain brightness-0 invert" />
+            <img src="/logo.png" alt="WhyMail" className="h-9 object-contain brightness-0 invert" />
           </div>
           <div className="flex-1 flex flex-col justify-center">
             <h2 className="text-4xl font-bold text-white leading-tight mb-4">Your email.<br />Your domain.<br />Your rules.</h2>
@@ -120,7 +120,7 @@ export default function LoginPage() {
           {/* Mobile logo */}
           <div className="lg:hidden flex items-center gap-2.5 mb-8">
             <img src="/icon.png" alt="icon" className="w-8 h-8 object-contain" />
-            <img src="/logo.png" alt="WhyMail" className="h-6 object-contain" />
+            <img src="/logo.png" alt="WhyMail" className="h-8 object-contain" />
           </div>
 
           {/* Tab switcher */}
