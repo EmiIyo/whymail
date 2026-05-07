@@ -258,7 +258,6 @@ export const accountsApi = {
     localPart: string;
     displayName?: string;
     forSelf: boolean;
-    password?: string;
     recoveryEmail?: string;
   }): Promise<EmailAccount> {
     const { data, error } = await supabase.functions.invoke('create-mailbox', {
@@ -267,7 +266,6 @@ export const accountsApi = {
         localPart: payload.localPart,
         displayName: payload.displayName,
         forSelf: payload.forSelf,
-        password: payload.password,
         recoveryEmail: payload.recoveryEmail,
       },
     });
@@ -334,6 +332,14 @@ export const authApi = {
   async confirmPasswordReset(token: string, newPassword: string): Promise<void> {
     const { data, error } = await supabase.functions.invoke('confirm-password-reset', {
       body: { token, newPassword },
+    });
+    if (error) throw new Error(error.message);
+    if (data?.error) throw new Error(data.error);
+  },
+
+  async signupRedeem(recoveryEmail: string, inviteCode: string, newPassword: string): Promise<void> {
+    const { data, error } = await supabase.functions.invoke('signup-redeem', {
+      body: { recoveryEmail, inviteCode, newPassword },
     });
     if (error) throw new Error(error.message);
     if (data?.error) throw new Error(data.error);

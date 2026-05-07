@@ -2,16 +2,20 @@ import { adminClient, jsonResponse, preflight, requireUser, UnauthorizedError } 
 
 interface CreateMailboxPayload {
   domainId: string;
-  localPart: string;            // text before '@', e.g. "admin"
+  localPart: string;
   displayName?: string | null;
-  forSelf: boolean;             // true => attach to admin's own auth user (no new login)
-  password?: string;            // required iff forSelf == false
+  forSelf: boolean;
   recoveryEmail?: string | null;
 }
 
-const MIN_PASSWORD_LEN = 8;
 const LOCAL_PART_RE = /^[a-zA-Z0-9._+-]+$/;
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+function randomTempPassword(): string {
+  const buf = new Uint8Array(24);
+  crypto.getRandomValues(buf);
+  return Array.from(buf, (b) => b.toString(16).padStart(2, '0')).join('');
+}
 
 Deno.serve(async (req: Request) => {
   if (req.method === 'OPTIONS') return preflight();
@@ -31,7 +35,6 @@ Deno.serve(async (req: Request) => {
       return jsonResponse({ error: 'localPart can only contain letters, digits and . _ + -' }, 400);
     }
 
-    // 1. Confirm the admin owns the domain.
     const domainRes = await admin
       .from('domains')
       .select('id, name, user_id')
@@ -44,7 +47,6 @@ Deno.serve(async (req: Request) => {
 
     const fullEmail = `${localPart}@${(domain.name as string).toLowerCase()}`;
 
-    // 2. Reject duplicates explicitly so the message is clearer than the unique-constraint error.
     const dup = await admin
       .from('email_accounts')
       .select('id')
@@ -54,54 +56,79 @@ Deno.serve(async (req: Request) => {
     if (dup.data) return jsonResponse({ error: `Mailbox ${fullEmail} already exists` }, 409);
 
     let ownerUserId: string;
-    let mustChangePassword = false;
+    let mustChangePassword: boolean;
 
     if (payload.forSelf) {
-      // Mailbox owned by the admin themselves: no new auth user, no password.
       ownerUserId = adminUser.id;
+      mustChangePassword = false;
     } else {
-      // Mailbox owned by a third party. Create a Supabase auth user whose
-      // login email is the mailbox address, with email pre-confirmed (admin
-      // vouches for the user). Initial password is the one the admin set.
-      const password = (payload.password ?? '').trim();
-      if (password.length < MIN_PASSWORD_LEN) {
-        return jsonResponse({ error: `Password must be at least ${MIN_PASSWORD_LEN} characters` }, 400);
+      // "For someone else" — admin no longer sets a password. The recovery_email
+      // becomes the user's login email. They activate via /signup with the
+      // shared invite code and pick their own password.
+      const recoveryEmail = (payload.recoveryEmail ?? '').trim().toLowerCase();
+      if (!recoveryEmail) {
+        return jsonResponse({ error: 'Recovery email is required when creating a mailbox for someone else' }, 400);
+      }
+      if (!EMAIL_RE.test(recoveryEmail)) {
+        return jsonResponse({ error: 'Invalid recovery email format' }, 400);
       }
 
-      // If an auth user with this email already exists, createUser returns
-      // an "already registered" error which we surface to the admin.
-      const created = await admin.auth.admin.createUser({
-        email: fullEmail,
-        password,
-        email_confirm: true,
-        user_metadata: {
-          mailbox_admin_id: adminUser.id,
-          mailbox_domain_id: domain.id,
-        },
-      });
-      if (created.error || !created.data?.user) {
-        const msg = created.error?.message ?? 'Failed to create auth user';
-        // Email-already-registered surfaces here as a 422.
-        return jsonResponse({ error: msg }, 400);
-      }
-      ownerUserId = created.data.user.id;
-      mustChangePassword = true;
-    }
-
-    // 3. Insert the mailbox row.
-    let recoveryEmail: string | null = null;
-    if (payload.recoveryEmail) {
-      const candidate = payload.recoveryEmail.trim().toLowerCase();
-      if (candidate) {
-        if (!EMAIL_RE.test(candidate)) {
-          if (!payload.forSelf) {
-            await admin.auth.admin.deleteUser(ownerUserId).catch(() => {});
-          }
-          return jsonResponse({ error: 'Invalid recovery email format' }, 400);
+      // Is there already an auth.users row with email = recovery_email?
+      // listUsers() doesn't filter server-side by email, so we paginate. With
+      // the user count small for now this is fine; revisit if it grows.
+      let existing: { id: string; email: string | null } | null = null;
+      let page = 1;
+      // Hard cap to avoid runaway loops if pagination misbehaves.
+      while (page <= 50) {
+        const list = await admin.auth.admin.listUsers({ page, perPage: 200 });
+        if (list.error) throw list.error;
+        const users = list.data?.users ?? [];
+        const match = users.find((u) => (u.email ?? '').toLowerCase() === recoveryEmail);
+        if (match) {
+          existing = { id: match.id, email: match.email ?? null };
+          break;
         }
-        recoveryEmail = candidate;
+        if (users.length < 200) break;
+        page += 1;
+      }
+
+      if (existing) {
+        // Auto-attach to existing user. Use the user's pending state from any
+        // existing mailbox they own — if they haven't activated yet (any
+        // mailbox has must_change_password=true), this new one is also pending.
+        ownerUserId = existing.id;
+        const ownerMailboxes = await admin
+          .from('email_accounts')
+          .select('must_change_password')
+          .eq('owner_user_id', ownerUserId);
+        if (ownerMailboxes.error) throw ownerMailboxes.error;
+        const someActivated = (ownerMailboxes.data ?? []).some((r) => r.must_change_password === false);
+        mustChangePassword = !someActivated;
+      } else {
+        // Create a placeholder auth user with a random temp password. The user
+        // will set their real password via /signup with the invite code.
+        const created = await admin.auth.admin.createUser({
+          email: recoveryEmail,
+          password: randomTempPassword(),
+          email_confirm: true,
+          user_metadata: {
+            mailbox_admin_id: adminUser.id,
+            mailbox_domain_id: domain.id,
+            pending_invite_redeem: true,
+          },
+        });
+        if (created.error || !created.data?.user) {
+          const msg = created.error?.message ?? 'Failed to create auth user';
+          return jsonResponse({ error: msg }, 400);
+        }
+        ownerUserId = created.data.user.id;
+        mustChangePassword = true;
       }
     }
+
+    const recoveryEmailToStore = payload.forSelf
+      ? (payload.recoveryEmail?.trim().toLowerCase() || null)
+      : (payload.recoveryEmail!.trim().toLowerCase());
 
     const insertRes = await admin
       .from('email_accounts')
@@ -111,17 +138,23 @@ Deno.serve(async (req: Request) => {
         domain_id: domain.id,
         email: fullEmail,
         display_name: payload.displayName?.trim() || null,
-        recovery_email: recoveryEmail,
+        recovery_email: recoveryEmailToStore,
         must_change_password: mustChangePassword,
       })
       .select('id, owner_user_id, created_by_user_id, domain_id, email, display_name, enabled, must_change_password, recovery_email, storage_used_mb, storage_quota_mb, last_activity_at, created_at')
       .single();
 
     if (insertRes.error) {
-      // If we created an auth user above and the row insert failed, roll back
-      // the auth user so we don't leave an orphan.
-      if (!payload.forSelf) {
-        await admin.auth.admin.deleteUser(ownerUserId).catch(() => {});
+      // Roll back the placeholder auth user only if WE just created it. Existing
+      // users (auto-attach case) must not be touched on insert failure.
+      if (!payload.forSelf && mustChangePassword === true) {
+        const ownerMailboxCount = await admin
+          .from('email_accounts')
+          .select('id', { count: 'exact', head: true })
+          .eq('owner_user_id', ownerUserId);
+        if ((ownerMailboxCount.count ?? 0) === 0) {
+          await admin.auth.admin.deleteUser(ownerUserId).catch(() => {});
+        }
       }
       throw insertRes.error;
     }

@@ -11,15 +11,15 @@ interface NewMailboxForm {
   displayName: string;
   domainId: string;
   forSelf: boolean;
-  password: string;
-  passwordConfirm: string;
   recoveryEmail: string;
 }
 
 const EMPTY_FORM: NewMailboxForm = {
   localPart: '', displayName: '', domainId: '',
-  forSelf: true, password: '', passwordConfirm: '', recoveryEmail: '',
+  forSelf: true, recoveryEmail: '',
 };
+
+const SIGNUP_INVITE_CODE = 'linuxlin';
 
 export default function AccountsPage() {
   const { user } = useAuth();
@@ -56,6 +56,22 @@ export default function AccountsPage() {
   const managedMailboxes = accounts.filter(
     (a) => a.ownerUserId !== user?.id && a.domainId && adminDomainIds.has(a.domainId),
   );
+  // Group managed mailboxes by their owner (login user). Multiple mailboxes can
+  // belong to the same person now that recovery email = login email, so we surface
+  // the user as the primary unit and list their mailboxes underneath.
+  const managedGroups = (() => {
+    const map = new Map<string, EmailAccount[]>();
+    for (const acc of managedMailboxes) {
+      const arr = map.get(acc.ownerUserId) ?? [];
+      arr.push(acc);
+      map.set(acc.ownerUserId, arr);
+    }
+    return Array.from(map.values()).sort((a, b) => {
+      const al = (a[0].recoveryEmail ?? a[0].email).toLowerCase();
+      const bl = (b[0].recoveryEmail ?? b[0].email).toLowerCase();
+      return al.localeCompare(bl);
+    });
+  })();
 
   const selectedDomain = domains.find((d) => d.id === form.domainId);
 
@@ -63,16 +79,14 @@ export default function AccountsPage() {
     mutationFn: () => {
       if (!form.domainId) throw new Error('Pick a domain');
       if (!form.localPart.trim()) throw new Error('Mailbox name required');
-      if (!form.forSelf) {
-        if (form.password.length < 8) throw new Error('Password must be at least 8 characters');
-        if (form.password !== form.passwordConfirm) throw new Error('Passwords do not match');
+      if (!form.forSelf && !form.recoveryEmail.trim()) {
+        throw new Error('Recovery email is required when creating a mailbox for someone else');
       }
       return accountsApi.create({
         domainId: form.domainId,
         localPart: form.localPart,
         displayName: form.displayName,
         forSelf: form.forSelf,
-        password: form.forSelf ? undefined : form.password,
         recoveryEmail: form.recoveryEmail.trim() || undefined,
       });
     },
@@ -319,51 +333,38 @@ export default function AccountsPage() {
 
             <div className="md:col-span-2">
               <label className="text-[10px] font-medium text-black/50 uppercase tracking-wide mb-1 block">
-                Recovery email <span className="text-black/30 normal-case font-normal">(optional, used for password reset)</span>
+                Recovery / login email{form.forSelf ? <span className="text-black/30 normal-case font-normal"> (optional)</span> : <span className="text-red-500 ml-0.5">*</span>}
               </label>
               <input
                 type="email"
                 value={form.recoveryEmail}
                 onChange={(e) => setField('recoveryEmail', e.target.value)}
                 placeholder={form.forSelf ? 'your-personal@gmail.com' : "user's personal gmail / outlook"}
+                required={!form.forSelf}
                 className="w-full text-sm border border-black/20 rounded-lg px-3 py-2 outline-none focus:border-black bg-white"
               />
               <p className="text-[10px] text-black/40 mt-1 leading-relaxed">
                 {form.forSelf
-                  ? 'Optional. Without one, your only way back into this mailbox if you forget the password is the recovery email on your main account.'
-                  : 'Without one, the user cannot reset their own password — you (the admin) will need to reset it for them.'}
+                  ? 'Optional. Used as a backup contact for password reset.'
+                  : 'This is the email the user will SIGN IN with. They activate by signing up with this email + the invite code below, and pick their own password.'}
               </p>
             </div>
 
             {!form.forSelf && (
-              <>
-                <div>
-                  <label className="text-[10px] font-medium text-black/50 uppercase tracking-wide mb-1 block">Initial password</label>
-                  <input
-                    type="text"
-                    value={form.password}
-                    onChange={(e) => setField('password', e.target.value)}
-                    placeholder="Min 8 characters"
-                    className="w-full text-sm border border-black/20 rounded-lg px-3 py-2 outline-none focus:border-black bg-white font-mono"
-                  />
+              <div className="md:col-span-2 text-xs leading-relaxed bg-emerald-50 border border-emerald-200 rounded-lg p-3 space-y-2">
+                <div className="flex items-start gap-2">
+                  <ShieldCheck size={14} className="shrink-0 mt-0.5 text-emerald-700" />
+                  <div className="space-y-1">
+                    <p className="font-semibold text-emerald-900">Send these to the user (WhatsApp / Slack):</p>
+                    <p className="text-emerald-900/80">
+                      1. Visit the sign-up page<br />
+                      2. Email: <span className="font-mono font-semibold">{form.recoveryEmail.trim() || '— recovery email above —'}</span><br />
+                      3. Invite code: <span className="font-mono font-semibold bg-white px-1.5 py-0.5 rounded border border-emerald-300">{SIGNUP_INVITE_CODE}</span><br />
+                      4. They pick their own password and they're in.
+                    </p>
+                  </div>
                 </div>
-                <div>
-                  <label className="text-[10px] font-medium text-black/50 uppercase tracking-wide mb-1 block">Confirm password</label>
-                  <input
-                    type="text"
-                    value={form.passwordConfirm}
-                    onChange={(e) => setField('passwordConfirm', e.target.value)}
-                    placeholder="Repeat the password"
-                    className="w-full text-sm border border-black/20 rounded-lg px-3 py-2 outline-none focus:border-black bg-white font-mono"
-                  />
-                </div>
-                <div className="md:col-span-2 text-xs text-black/50 leading-relaxed bg-amber-50 border border-amber-200 rounded-lg p-3 flex gap-2">
-                  <AlertCircle size={14} className="shrink-0 mt-0.5 text-amber-600" />
-                  <span>
-                    Share these credentials with the user out of band (Slack/WhatsApp). They will be required to change the password on first login.
-                  </span>
-                </div>
-              </>
+              </div>
             )}
           </div>
 
@@ -416,15 +417,41 @@ export default function AccountsPage() {
           </section>
         )}
 
-        {managedMailboxes.length > 0 && (
+        {managedGroups.length > 0 && (
           <section>
             <h2 className="text-[11px] uppercase tracking-wide text-black/40 font-semibold mb-2">
-              Mailboxes I manage ({managedMailboxes.length})
+              Users I manage ({managedGroups.length} user{managedGroups.length !== 1 ? 's' : ''} · {managedMailboxes.length} mailbox{managedMailboxes.length !== 1 ? 'es' : ''})
             </h2>
-            <div className="space-y-2">
-              {managedMailboxes.map((acc) => (
-                <Mailbox key={acc.id} acc={acc} isManaged={true} />
-              ))}
+            <div className="space-y-4">
+              {managedGroups.map((group) => {
+                const login = group[0].recoveryEmail ?? '(no recovery email)';
+                // Pick a consistent display name across the group's mailboxes; fall back
+                // to nothing rather than guessing per-mailbox aliases.
+                const distinctNames = Array.from(
+                  new Set(group.map((m) => m.name).filter((n) => n && n !== group.find((g) => g.name === n)?.email)),
+                );
+                const groupName = distinctNames.length === 1 ? distinctNames[0] : null;
+                const initial = (groupName ?? login)[0].toUpperCase();
+                return (
+                  <div key={group[0].ownerUserId} className="space-y-2">
+                    <div className="flex items-center gap-3 px-1">
+                      <div className="w-8 h-8 rounded-full bg-black flex items-center justify-center shrink-0">
+                        <span className="text-white text-[11px] font-semibold">{initial}</span>
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        {groupName && <p className="text-sm font-semibold text-black truncate">{groupName}</p>}
+                        <p className="text-xs text-black/50 font-mono truncate">{login}</p>
+                      </div>
+                      <span className="text-[10px] text-black/40 shrink-0">{group.length} mailbox{group.length !== 1 ? 'es' : ''}</span>
+                    </div>
+                    <div className="space-y-2 ml-4 pl-4 border-l border-black/10">
+                      {group.map((acc) => (
+                        <Mailbox key={acc.id} acc={acc} isManaged={true} />
+                      ))}
+                    </div>
+                  </div>
+                );
+              })}
             </div>
           </section>
         )}

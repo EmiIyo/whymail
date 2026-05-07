@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { Eye, EyeOff, ArrowRight, Mail, Lock, User, AlertCircle, CheckCircle2 } from 'lucide-react';
+import { Eye, EyeOff, ArrowRight, Mail, Lock, AlertCircle, CheckCircle2, KeyRound } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -15,7 +15,7 @@ type Mode = 'signin' | 'signup';
 
 export default function LoginPage() {
   const navigate = useNavigate();
-  const { signIn, signUp, user, loading: authLoading } = useAuth();
+  const { signIn, user, loading: authLoading } = useAuth();
   const [mode, setMode] = useState<Mode>('signin');
   const [showPass, setShowPass] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -24,8 +24,8 @@ export default function LoginPage() {
 
   const [signInEmail, setSignInEmail] = useState('');
   const [signInPass, setSignInPass] = useState('');
-  const [signUpName, setSignUpName] = useState('');
   const [signUpEmail, setSignUpEmail] = useState('');
+  const [signUpInvite, setSignUpInvite] = useState('');
   const [signUpPass, setSignUpPass] = useState('');
   const [signUpConfirm, setSignUpConfirm] = useState('');
   const [resetSent, setResetSent] = useState(false);
@@ -75,18 +75,26 @@ export default function LoginPage() {
     setError('');
     setInfo('');
     if (signUpPass !== signUpConfirm) { setError("Passwords don't match"); return; }
+    if (signUpPass.length < 8) { setError('Password must be at least 8 characters'); return; }
+    if (!signUpInvite.trim()) { setError('Invite code is required'); return; }
     setLoading(true);
-    const { error: err } = await signUp(signUpEmail, signUpPass, signUpName);
-    setLoading(false);
-    if (err) { setError(err.message); return; }
-    // Switch to sign-in tab and prefill the email. Show a clear status message
-    // so the user understands what happened (depending on whether email
-    // confirmation is enabled in Supabase, this may be "check your inbox" or
-    // "you can sign in now").
-    setMode('signin');
-    setSignInEmail(signUpEmail);
-    setSignInPass('');
-    setInfo(`Account created for ${signUpEmail}. If your project requires email confirmation, check your inbox first; otherwise sign in below.`);
+    try {
+      await authApi.signupRedeem(signUpEmail.trim(), signUpInvite.trim(), signUpPass);
+      // Activation succeeded. Sign the user in directly so they land on the inbox.
+      const { error: signInErr } = await signIn(signUpEmail.trim(), signUpPass);
+      if (signInErr) {
+        setMode('signin');
+        setSignInEmail(signUpEmail.trim());
+        setSignInPass('');
+        setInfo('Account activated. Sign in below.');
+      } else {
+        navigate(ROUTE_PATHS.INBOX);
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Sign-up failed');
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -184,21 +192,24 @@ export default function LoginPage() {
           {mode === 'signup' && (
             <form onSubmit={handleSignUp} className="space-y-4">
               <div>
-                <Label className="text-xs text-muted-foreground mb-1.5 block">Full name</Label>
-                <div className="relative">
-                  <User className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                  <Input type="text" value={signUpName} onChange={e => setSignUpName(e.target.value)} className="pl-9" placeholder="John Doe" required />
-                </div>
-              </div>
-              <div>
                 <Label className="text-xs text-muted-foreground mb-1.5 block">Email address</Label>
                 <div className="relative">
                   <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                  <Input type="email" value={signUpEmail} onChange={e => setSignUpEmail(e.target.value)} className="pl-9 font-mono text-sm" placeholder="you@yourdomain.com" required />
+                  <Input type="email" value={signUpEmail} onChange={e => setSignUpEmail(e.target.value)} className="pl-9 font-mono text-sm" placeholder="The email your admin gave you" required />
+                </div>
+                <p className="text-[11px] text-muted-foreground mt-1.5 leading-relaxed">
+                  Use the email your admin set as your recovery / login address.
+                </p>
+              </div>
+              <div>
+                <Label className="text-xs text-muted-foreground mb-1.5 block">Invite code</Label>
+                <div className="relative">
+                  <KeyRound className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                  <Input type="text" value={signUpInvite} onChange={e => setSignUpInvite(e.target.value)} className="pl-9 font-mono text-sm" placeholder="Invite code from your admin" required />
                 </div>
               </div>
               <div>
-                <Label className="text-xs text-muted-foreground mb-1.5 block">Password</Label>
+                <Label className="text-xs text-muted-foreground mb-1.5 block">Choose a password</Label>
                 <div className="relative">
                   <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                   <Input type={showPass ? 'text' : 'password'} value={signUpPass} onChange={e => setSignUpPass(e.target.value)} className="pl-9 pr-10" placeholder="Min. 8 characters" required minLength={8} />
@@ -217,7 +228,7 @@ export default function LoginPage() {
                 {signUpConfirm && signUpConfirm !== signUpPass && <p className="text-xs text-destructive mt-1">Passwords don't match</p>}
               </div>
               <Button type="submit" className="w-full gap-2 mt-2" disabled={loading || (!!signUpConfirm && signUpConfirm !== signUpPass)}>
-                {loading ? <><span className="w-4 h-4 border-2 border-primary-foreground/30 border-t-primary-foreground rounded-full animate-spin" />Creating account...</> : <><span>Create account</span><ArrowRight className="w-4 h-4" /></>}
+                {loading ? <><span className="w-4 h-4 border-2 border-primary-foreground/30 border-t-primary-foreground rounded-full animate-spin" />Activating...</> : <><span>Activate & sign in</span><ArrowRight className="w-4 h-4" /></>}
               </Button>
               <Separator />
               <p className="text-xs text-center text-muted-foreground">
