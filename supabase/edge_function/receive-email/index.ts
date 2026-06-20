@@ -1,4 +1,5 @@
 import { adminClient, jsonResponse, preflight } from '../_shared/http.ts';
+import { sendPushToUser } from '../_shared/push.ts';
 
 // This endpoint is called from a Cloudflare Email Worker (not a user's
 // browser) so we can't rely on a Supabase user JWT. Instead the worker
@@ -103,23 +104,50 @@ Deno.serve(async (req: Request) => {
       return jsonResponse({ error: 'missing recipient' }, 400);
     }
 
-    // 4. Match the first recipient against a hosted mailbox (case-insensitive).
-    //    If multiple of our mailboxes are recipients we write one row per match.
+    // 4. Match recipients against hosted mailboxes (case-insensitive),
+    //    resolving both primary addresses and aliases.
     const addressesLower = payload.to
       .concat(payload.cc ?? [])
       .map((a) => a.address.toLowerCase())
       .filter(Boolean);
 
+    // Match against primary mailbox addresses.
     const mailboxRes = await admin
       .from('email_accounts')
       .select('id, owner_user_id, email, enabled')
       .in('email', addressesLower);
     if (mailboxRes.error) throw mailboxRes.error;
-    const mailboxes = (mailboxRes.data ?? []).filter((m) => m.enabled !== false);
+    const directMailboxes = (mailboxRes.data ?? []).filter((m) => m.enabled !== false);
+
+    // Also match against alias addresses; resolve them to their parent mailbox.
+    const aliasRes = await admin
+      .from('mailbox_aliases')
+      .select('alias_email, mailbox_id, email_accounts!inner(id, owner_user_id, email, enabled)')
+      .in('alias_email', addressesLower);
+    if (aliasRes.error) throw aliasRes.error;
+    type AliasJoinRow = {
+      alias_email: string;
+      mailbox_id: string;
+      email_accounts: { id: string; owner_user_id: string; email: string; enabled: boolean | null };
+    };
+    const aliasMatches: Array<{ id: string; owner_user_id: string; email: string; enabled: boolean | null }> = [];
+    for (const row of (aliasRes.data ?? []) as unknown as AliasJoinRow[]) {
+      const ea = row.email_accounts;
+      if (ea && ea.enabled !== false) aliasMatches.push(ea);
+    }
+
+    // Deduplicate by mailbox id.
+    const seen = new Set<string>();
+    const mailboxes: Array<{ id: string; owner_user_id: string; email: string }> = [];
+    for (const m of [...directMailboxes, ...aliasMatches]) {
+      if (seen.has(m.id)) continue;
+      seen.add(m.id);
+      mailboxes.push(m);
+    }
 
     if (mailboxes.length === 0) {
       // Not one of ours — nothing to do but ack so the worker doesn't retry.
-      return jsonResponse({ ok: true, stored: 0, skipped: 'no matching mailbox' });
+      return jsonResponse({ ok: true, stored: 0, skipped: 'no matching mailbox or alias' });
     }
 
     let storedCount = 0;
@@ -182,6 +210,17 @@ Deno.serve(async (req: Request) => {
         .from('email_accounts')
         .update({ last_activity_at: new Date().toISOString() })
         .eq('id', mb.id);
+
+      // Fire a push notification to the mailbox owner's registered devices.
+      // Awaited (not fire-and-forget) because the isolate may freeze once we
+      // return the response. Best-effort: sendPushToUser never throws.
+      const senderLabel = payload.from?.name || payload.from?.address || 'New message';
+      await sendPushToUser(admin, mb.owner_user_id, {
+        title: senderLabel,
+        body: payload.subject?.trim() || '(no subject)',
+        url: '/inbox',
+        tag: `mailbox-${mb.id}`,
+      });
 
       storedCount++;
     }

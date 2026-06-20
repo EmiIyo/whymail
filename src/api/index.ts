@@ -560,9 +560,16 @@ async function rowToEmail(row: Record<string, unknown>): Promise<Email> {
     atts.map(async (a: Record<string, unknown>) => {
       let url = '#';
       if (a.storage_path) {
+        // Pass `download` so the signed URL carries a Content-Disposition:
+        // attachment header. The HTML `download` attribute is ignored for
+        // cross-origin URLs (Supabase storage is a different origin), so this
+        // is what actually makes mobile browsers save the file instead of
+        // opening it inline.
         const { data } = await supabase.storage
           .from('attachments')
-          .createSignedUrl(a.storage_path as string, 60 * 60);
+          .createSignedUrl(a.storage_path as string, 60 * 60, {
+            download: (a.filename as string) ?? true,
+          });
         url = data?.signedUrl ?? '#';
       }
       return {

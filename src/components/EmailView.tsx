@@ -185,9 +185,16 @@ export function EmailView({ email }: EmailViewProps) {
               </h3>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                 {email.attachments.map(att => (
-                  <div
+                  // The whole row is the download link so it has a large tap
+                  // target on touch devices. The trailing icon is always
+                  // visible (no hover-only reveal) so it works on mobile.
+                  <a
                     key={att.id}
-                    className="flex items-center gap-3 p-3 rounded-lg border border-border bg-muted/30 hover:bg-accent/50 transition-colors group"
+                    href={att.url}
+                    download={att.filename}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center gap-3 p-3 rounded-lg border border-border bg-muted/30 hover:bg-accent/50 active:bg-accent transition-colors"
                   >
                     <div className="w-9 h-9 rounded-md bg-primary/10 flex items-center justify-center shrink-0">
                       <Paperclip className="w-4 h-4 text-primary" />
@@ -196,14 +203,10 @@ export function EmailView({ email }: EmailViewProps) {
                       <p className="text-sm font-medium text-foreground truncate">{att.filename}</p>
                       <p className="text-xs text-muted-foreground">{formatBytes(att.size)}</p>
                     </div>
-                    <a
-                      href={att.url}
-                      download={att.filename}
-                      className="p-1.5 rounded-md hover:bg-primary/10 text-muted-foreground hover:text-primary transition-colors opacity-0 group-hover:opacity-100"
-                    >
-                      <Download className="w-3.5 h-3.5" />
-                    </a>
-                  </div>
+                    <span className="p-1.5 rounded-md text-muted-foreground shrink-0">
+                      <Download className="w-4 h-4" />
+                    </span>
+                  </a>
                 ))}
               </div>
             </div>

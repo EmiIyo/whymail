@@ -5,6 +5,7 @@ import { profilesApi, accountsApi } from '@/api/index';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/hooks/useAuth';
 import { useToast } from '@/hooks/use-toast';
+import { enablePush, disablePush, pushSupported } from '@/lib/push';
 
 type Tab = 'profile' | 'notifications' | 'server' | 'security';
 
@@ -50,6 +51,59 @@ export default function SettingsPage() {
     onSuccess: () => qc.invalidateQueries({ queryKey: ['profile'] }),
     onError: (err: Error) => toast({ title: 'Could not save preference', description: err.message, variant: 'destructive' }),
   });
+
+  // iOS only allows Web Push when the app is installed to the Home Screen
+  // (standalone display mode). Detect that so we can guide the user.
+  const isIos = /iPad|iPhone|iPod/.test(navigator.userAgent);
+  const isStandalone =
+    window.matchMedia?.('(display-mode: standalone)').matches ||
+    // @ts-expect-error — non-standard iOS Safari flag
+    window.navigator.standalone === true;
+
+  // Toggling "New email" also (un)registers this device for push. We persist
+  // the preference regardless, but only subscribe when the browser grants
+  // permission.
+  const handleNewMailToggle = async (enabled: boolean) => {
+    setNotifyNewMail(enabled);
+    notificationMutation.mutate({ notifyNewMail: enabled });
+
+    if (!enabled) {
+      await disablePush();
+      return;
+    }
+
+    if (!pushSupported()) {
+      toast({
+        title: 'Notifications not supported',
+        description: 'This browser cannot show push notifications.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    if (isIos && !isStandalone) {
+      toast({
+        title: 'Add WhyMail to your Home Screen first',
+        description: 'On iPhone/iPad, tap Share → "Add to Home Screen", open it from there, then enable notifications.',
+      });
+      return;
+    }
+
+    const result = await enablePush();
+    if (result.ok) {
+      toast({ title: 'Notifications enabled', description: 'This device will alert you on new mail.' });
+    } else if (result.reason === 'denied') {
+      toast({
+        title: 'Permission blocked',
+        description: 'Allow notifications for this site in your browser settings, then try again.',
+        variant: 'destructive',
+      });
+    } else if (result.reason === 'no-key') {
+      toast({ title: 'Push not configured', description: 'Missing VAPID public key.', variant: 'destructive' });
+    } else if (result.reason !== 'unsupported') {
+      toast({ title: 'Could not enable notifications', description: result.message, variant: 'destructive' });
+    }
+  };
 
   const saveMutation = useMutation({
     mutationFn: () => profilesApi.update(user!.id, name),
@@ -179,11 +233,17 @@ export default function SettingsPage() {
             <div className="space-y-4">
               <ToggleRow
                 label="New email"
-                desc="Show a desktop notification when a new mail arrives in any of your inboxes."
+                desc="Get a push notification on this device when new mail arrives — even when WhyMail is closed."
                 checked={notifyNewMail}
-                onChange={(v) => { setNotifyNewMail(v); notificationMutation.mutate({ notifyNewMail: v }); }}
+                onChange={(v) => { void handleNewMailToggle(v); }}
                 disabled={notificationMutation.isPending}
               />
+              {isIos && !isStandalone && (
+                <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+                  On iPhone/iPad, push notifications only work after you add WhyMail to your Home Screen
+                  (Share → "Add to Home Screen") and open it from there.
+                </p>
+              )}
               <ToggleRow
                 label="Mentions"
                 desc="Notify when an incoming mail addresses you directly (To/CC includes your address)."
