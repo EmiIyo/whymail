@@ -205,8 +205,27 @@ function cdnPrefixImages(): Plugin {
   };
 }
 
+// Emits a static version.json into the build so the running app can detect
+// when a newer deploy is available and reload itself. The value matches the
+// `__APP_VERSION__` constant baked into the bundle below.
+function emitVersionJson(version: string): Plugin {
+  return {
+    name: 'emit-version-json',
+    apply: 'build',
+    generateBundle() {
+      this.emitFile({
+        type: 'asset',
+        fileName: 'version.json',
+        source: JSON.stringify({ version }),
+      });
+    },
+  };
+}
+
 // https://vitejs.dev/config/
 export default defineConfig(({ mode }) => {
+  // A fresh id per build. Overridable via env for reproducible/CI builds.
+  const buildVersion = process.env.VITE_BUILD_VERSION || String(Date.now());
   return {
     server: {
       host: "::",
@@ -218,6 +237,7 @@ export default defineConfig(({ mode }) => {
       mode === 'development' &&
       componentTagger(),
       cdnPrefixImages(),
+      emitVersionJson(buildVersion),
     ].filter(Boolean),
     resolve: {
       alias: {
@@ -233,10 +253,12 @@ export default defineConfig(({ mode }) => {
       // In production, this will be false by default unless explicitly set to 'true'
       // In development and test, this will be true by default
       __ROUTE_MESSAGING_ENABLED__: JSON.stringify(
-        mode === 'production' 
+        mode === 'production'
           ? process.env.VITE_ENABLE_ROUTE_MESSAGING === 'true'
           : process.env.VITE_ENABLE_ROUTE_MESSAGING !== 'false'
       ),
+      // Build id baked into the bundle; compared against /version.json at runtime.
+      __APP_VERSION__: JSON.stringify(buildVersion),
     },
   }
 });
