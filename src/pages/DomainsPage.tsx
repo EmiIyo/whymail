@@ -54,6 +54,21 @@ export default function DomainsPage() {
     },
   });
 
+  const refreshOutboundMutation = useMutation({
+    mutationFn: (id: string) => domainsApi.refreshOutbound(id),
+    onSuccess: (res: { ok: boolean; ready: boolean; hint: string }) => {
+      qc.invalidateQueries({ queryKey: ['domains'] });
+      toast({
+        title: res.ready ? 'Email Sending ready' : 'Still not onboarded',
+        description: res.hint,
+        variant: res.ready ? undefined : 'destructive',
+      });
+    },
+    onError: (err: Error) => {
+      toast({ title: 'Refresh failed', description: err.message, variant: 'destructive' });
+    },
+  });
+
   // Multi-admin team management
   const [adminEmail, setAdminEmail] = useState<Record<string, string>>({});
 
@@ -212,6 +227,8 @@ export default function DomainsPage() {
                   isRemoving={removeAdminMutation.isPending}
                 />
                 <DomainSetupWizard
+                  onRefreshOutbound={(id) => refreshOutboundMutation.mutate(id)}
+                  refreshingOutbound={refreshOutboundMutation.isPending && refreshOutboundMutation.variables === domain.id}
                   domain={domain}
                   checks={verifyResults[domain.id]}
                   copiedKey={copied}
@@ -350,16 +367,16 @@ function AdminRow({ admin, roleLabel, canRemove, onRemove, isRemoving }: AdminRo
 
 // ─── Setup status panel ──────────────────────────────────────────────────────
 // Everything below is automated by the create-domain edge function:
-//  - DNS records (DKIM/SPF/DMARC/return-path/verification) written to Cloudflare
+//  - DNS records (SPF/DMARC) written to Cloudflare
 //  - Cloudflare Email Routing enabled + catch-all rule set to whymail-email-worker
-//  - ForwardEmail domain registered + ignore_mx_check + verify-records + verify-smtp
+//  - Detection of Cloudflare Email Sending onboarding via cf-bounce subdomain
 //
 // This panel is therefore a status dashboard, not a setup wizard. It surfaces:
 //  - Which records exist (Show records)
 //  - Whether each verify check passes (after the user clicks Verify now)
-//  - Deep links into Cloudflare/ForwardEmail for inspection or troubleshooting
-// The only time the user needs to act is if a check fails (DNS edited externally
-// or ForwardEmail flagged the domain for human review).
+//  - Deep links into the Cloudflare dashboard for inspection or troubleshooting
+// The only manual action: one-time Email Sending onboarding click in Cloudflare
+// dashboard (no public API for this yet) — then user hits Refresh in this UI.
 
 interface WizardProps {
   domain: Domain;
@@ -368,9 +385,11 @@ interface WizardProps {
   onCopy: (text: string, key: string) => void;
   onVerify: () => void;
   isVerifying: boolean;
+  onRefreshOutbound?: (domainId: string) => void;
+  refreshingOutbound?: boolean;
 }
 
-function DomainSetupWizard({ domain, checks, copiedKey, onCopy, onVerify, isVerifying }: WizardProps) {
+function DomainSetupWizard({ domain, checks, copiedKey, onCopy, onVerify, isVerifying, onRefreshOutbound, refreshingOutbound }: WizardProps) {
   const records = domain.dnsRecords ?? [];
   const recordsByKind = (kind: DnsRecord['kind']) => records.filter((r) => r.kind === kind);
   const checkById = (id: string) => checks?.find((c) => c.id === id);
@@ -428,11 +447,11 @@ function DomainSetupWizard({ domain, checks, copiedKey, onCopy, onVerify, isVeri
         title="DNS records"
         status={stepStatus(dnsAllOk, !!checks)}
         description={
-          dkimRecords.length === 0 ? (
-            <span className="text-amber-700">ForwardEmail integration not connected for this domain.</span>
+          allDnsRecords.length === 0 ? (
+            <span className="text-amber-700">No DNS records snapshot for this domain — try re-verifying.</span>
           ) : (
             <>
-              <b>Auto-configured</b> when this domain was added. WhyMail wrote {allDnsRecords.length} DNS records (DKIM, SPF, DMARC, return-path, verification) directly to your Cloudflare zone.{' '}
+              <b>Auto-configured</b> when this domain was added. WhyMail wrote {allDnsRecords.length} DNS records (MX, SPF, DMARC, Cloudflare-managed DKIM) directly to your Cloudflare zone.{' '}
               <button onClick={() => setShowRecords((v) => !v)} className="underline">{showRecords ? 'Hide' : 'Show'} records</button>.
               {!!checks && !dnsAllOk && (
                 <span className="block mt-1 text-amber-700">Some records are missing/changed. Click <a href={`https://dash.cloudflare.com/?to=/:account/${domain.name}/dns/records`} target="_blank" rel="noreferrer" className="underline inline-flex items-center gap-1">Cloudflare DNS <ExternalLink size={9} /></a> to inspect or re-trigger Verify.</span>
@@ -488,30 +507,50 @@ function DomainSetupWizard({ domain, checks, copiedKey, onCopy, onVerify, isVeri
         </a>
       </WizardStep>
 
-      {/* Step 3 — ForwardEmail Outbound SMTP (auto-verified during create-domain) */}
+      {/* Step 3 — Cloudflare Email Sending (one manual onboard click in CF dashboard, then Refresh) */}
       <WizardStep
         n={3}
-        title="Outbound: ForwardEmail SMTP"
+        title="Outbound: Cloudflare Email Sending"
         status={domain.verified ? 'done' : 'pending'}
         description={
-          <>
-            <b>Auto-configured</b>. WhyMail registered this domain with ForwardEmail and called{' '}
-            <code className="font-mono bg-black/[0.04] px-1.5 py-0.5 rounded">verify-smtp</code> on
-            your behalf, which is the same backend check the dashboard's manual button runs. Most
-            domains are auto-approved instantly; a small fraction are queued for human review (1-2h).
-            If sending fails with "not approved for outbound SMTP", click below to nudge ForwardEmail.
-          </>
+          domain.verified ? (
+            <>
+              <b>Active</b>. Cloudflare Email Sending is onboarded for this domain. Outbound mail
+              goes through <code className="font-mono bg-black/[0.04] px-1.5 py-0.5 rounded">cf-bounce.{domain.name}</code>
+              {' '}with CF-managed DKIM, SPF, and DMARC.
+            </>
+          ) : (
+            <>
+              <b>Manual step required</b>. Cloudflare has no public API for Email Sending domain
+              onboarding (yet). Open Cloudflare dashboard →{' '}
+              <b>Compute → Email Service → Email Sending</b> → <b>Onboard Domain</b>, pick{' '}
+              <code className="font-mono bg-black/[0.04] px-1.5 py-0.5 rounded">{domain.name}</code>,
+              confirm. CF auto-creates the <code className="font-mono">cf-bounce</code> subdomain.
+              Come back here and hit <b>Refresh</b> below.
+            </>
+          )
         }
       >
-        <a
-          href={`https://forwardemail.net/my-account/domains/${domain.name}/verify-smtp`}
-          target="_blank"
-          rel="noreferrer"
-          className="inline-flex items-center gap-1.5 text-xs bg-black/5 text-black/70 px-3 py-1.5 rounded-lg hover:bg-black/10 transition-colors w-fit"
-        >
-          <ExternalLink size={11} />
-          Open on ForwardEmail
-        </a>
+        <div className="flex flex-wrap items-center gap-2">
+          <a
+            href="https://dash.cloudflare.com/?to=/:account/email/email-sending"
+            target="_blank"
+            rel="noreferrer"
+            className="inline-flex items-center gap-1.5 text-xs bg-black/5 text-black/70 px-3 py-1.5 rounded-lg hover:bg-black/10 transition-colors w-fit"
+          >
+            <ExternalLink size={11} />
+            Open Cloudflare Email Sending
+          </a>
+          {!domain.verified && (
+            <button
+              onClick={() => onRefreshOutbound?.(domain.id)}
+              disabled={refreshingOutbound}
+              className="inline-flex items-center gap-1.5 text-xs bg-black text-white px-3 py-1.5 rounded-lg hover:bg-black/80 disabled:opacity-50 transition-colors w-fit"
+            >
+              {refreshingOutbound ? 'Checking…' : 'Refresh status'}
+            </button>
+          )}
+        </div>
       </WizardStep>
 
       {/* Step 4 — Compose a test */}

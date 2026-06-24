@@ -175,6 +175,13 @@ export const domainsApi = {
     if (error) throw error;
     return data as DomainVerifyResponse;
   },
+
+  async refreshOutbound(id: string): Promise<{ ok: boolean; ready: boolean; hint: string }> {
+    const { data, error } = await supabase.functions.invoke('refresh-domain-outbound', { body: { domainId: id } });
+    if (error) throw new Error(error.message);
+    if (data?.error) throw new Error(data.error);
+    return data as { ok: boolean; ready: boolean; hint: string };
+  },
 };
 
 // ─── Domain Admins (co-admin team) ────────────────────────────
