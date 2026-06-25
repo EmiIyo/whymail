@@ -56,14 +56,14 @@ Deno.serve(async (req: Request) => {
     const dkimCount = dkimRes.body?.result?.length ?? 0;
     const ready = mxCount >= 1 && dkimCount >= 1;
 
+    // NOTE: outbound_provider column was dropped after FE decommission — don't write it.
     const upd = await admin.from('domains')
       .update({
-        outbound_provider: 'cloudflare',
         verified: ready,
         verification_status: ready ? 'verified' : 'pending',
       })
       .eq('id', domainId)
-      .select('id, verified, verification_status, outbound_provider')
+      .select('id, verified, verification_status')
       .single();
     if (upd.error) throw upd.error;
 

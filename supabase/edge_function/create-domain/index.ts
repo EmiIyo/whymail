@@ -193,6 +193,7 @@ Deno.serve(async (req: Request) => {
 
     const dnsRecords = buildDnsRecordSnapshot(reconcile.emailSendingReady);
 
+    // NOTE: outbound_provider column was dropped after FE decommission — don't write it.
     const insert = await admin.from('domains').insert({
       user_id: caller.id,
       name,
@@ -204,7 +205,6 @@ Deno.serve(async (req: Request) => {
       dmarc_record: 'v=DMARC1; p=reject; pct=100;',
       verified: reconcile.emailSendingReady,
       verification_status: reconcile.emailSendingReady ? 'verified' : 'pending',
-      outbound_provider: 'cloudflare',
     }).select('*, email_accounts(count)').single();
     if (insert.error) throw insert.error;
 
