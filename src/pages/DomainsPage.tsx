@@ -441,49 +441,9 @@ function DomainSetupWizard({ domain, checks, copiedKey, onCopy, onVerify, isVeri
         </button>
       </div>
 
-      {/* Step 1 — DNS records */}
+      {/* Step 1 — Cloudflare Email Routing (auto-configured by create-domain) */}
       <WizardStep
         n={1}
-        title="DNS records"
-        status={stepStatus(dnsAllOk, !!checks)}
-        description={
-          allDnsRecords.length === 0 ? (
-            <span className="text-amber-700">No DNS records snapshot for this domain — try re-verifying.</span>
-          ) : (
-            <>
-              <b>Auto-configured</b> when this domain was added. WhyMail wrote {allDnsRecords.length} DNS records (MX, SPF, DMARC, Cloudflare-managed DKIM) directly to your Cloudflare zone.{' '}
-              <button onClick={() => setShowRecords((v) => !v)} className="underline">{showRecords ? 'Hide' : 'Show'} records</button>.
-              {!!checks && !dnsAllOk && (
-                <span className="block mt-1 text-amber-700">Some records are missing/changed. Click <a href={`https://dash.cloudflare.com/?to=/:account/${domain.name}/dns/records`} target="_blank" rel="noreferrer" className="underline inline-flex items-center gap-1">Cloudflare DNS <ExternalLink size={9} /></a> to inspect or re-trigger Verify.</span>
-              )}
-            </>
-          )
-        }
-      >
-        {(showRecords || (!!checks && !dnsAllOk)) && allDnsRecords.length > 0 && (
-          <>
-            {allDnsRecords.some((r) => r.type === 'CNAME') && (
-              <div className="rounded-lg border border-blue-200 bg-blue-50/60 px-3 py-2 text-[11px] text-blue-900 leading-relaxed">
-                <b>CNAME proxy must be OFF (DNS only / gray cloud).</b> Orange-cloud proxy breaks DKIM/return-path lookups.
-              </div>
-            )}
-            {allDnsRecords.map((rec) => (
-              <RecordRow
-                key={rec.id}
-                record={rec}
-                check={checkById(rec.id)}
-                copyKey={`${domain.id}-${rec.id}`}
-                copiedKey={copiedKey}
-                onCopy={onCopy}
-              />
-            ))}
-          </>
-        )}
-      </WizardStep>
-
-      {/* Step 2 — Cloudflare Email Routing (auto-configured by create-domain) */}
-      <WizardStep
-        n={2}
         title="Inbound: Cloudflare Email Routing"
         status="done"
         description={
@@ -507,9 +467,9 @@ function DomainSetupWizard({ domain, checks, copiedKey, onCopy, onVerify, isVeri
         </a>
       </WizardStep>
 
-      {/* Step 3 — Cloudflare Email Sending (one manual onboard click in CF dashboard, then Refresh) */}
+      {/* Step 2 — Cloudflare Email Sending (one manual onboard click in CF dashboard, then Refresh) */}
       <WizardStep
-        n={3}
+        n={2}
         title="Outbound: Cloudflare Email Sending"
         status={domain.verified ? 'done' : 'pending'}
         description={
@@ -553,17 +513,45 @@ function DomainSetupWizard({ domain, checks, copiedKey, onCopy, onVerify, isVeri
         </div>
       </WizardStep>
 
-      {/* Step 4 — Compose a test */}
+      {/* Step 3 — DNS records (reference / troubleshooting) */}
       <WizardStep
-        n={4}
-        title="Send a test"
-        status={domain.verified ? 'done' : 'idle'}
+        n={3}
+        title="DNS records"
+        status={stepStatus(dnsAllOk, !!checks)}
         description={
-          domain.verified
-            ? 'Open Compose, pick any mailbox under this domain, send to your personal address — the message lands in your inbox in seconds.'
-            : 'Once Step 3 turns green, send a test message to confirm.'
+          allDnsRecords.length === 0 ? (
+            <span className="text-amber-700">No DNS records snapshot for this domain — try re-verifying.</span>
+          ) : (
+            <>
+              <b>Auto-configured</b> when this domain was added. WhyMail wrote {allDnsRecords.length} DNS records (MX, SPF, DMARC, Cloudflare-managed DKIM) directly to your Cloudflare zone.{' '}
+              <button onClick={() => setShowRecords((v) => !v)} className="underline">{showRecords ? 'Hide' : 'Show'} records</button>.
+              {!!checks && !dnsAllOk && (
+                <span className="block mt-1 text-amber-700">Some records are missing/changed. Click <a href={`https://dash.cloudflare.com/?to=/:account/${domain.name}/dns/records`} target="_blank" rel="noreferrer" className="underline inline-flex items-center gap-1">Cloudflare DNS <ExternalLink size={9} /></a> to inspect or re-trigger Verify.</span>
+              )}
+            </>
+          )
         }
-      />
+      >
+        {(showRecords || (!!checks && !dnsAllOk)) && allDnsRecords.length > 0 && (
+          <>
+            {allDnsRecords.some((r) => r.type === 'CNAME') && (
+              <div className="rounded-lg border border-blue-200 bg-blue-50/60 px-3 py-2 text-[11px] text-blue-900 leading-relaxed">
+                <b>CNAME proxy must be OFF (DNS only / gray cloud).</b> Orange-cloud proxy breaks DKIM/return-path lookups.
+              </div>
+            )}
+            {allDnsRecords.map((rec) => (
+              <RecordRow
+                key={rec.id}
+                record={rec}
+                check={checkById(rec.id)}
+                copyKey={`${domain.id}-${rec.id}`}
+                copiedKey={copiedKey}
+                onCopy={onCopy}
+              />
+            ))}
+          </>
+        )}
+      </WizardStep>
     </div>
   );
 }
