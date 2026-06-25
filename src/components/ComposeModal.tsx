@@ -229,20 +229,38 @@ export function ComposeModal({ open, onClose, initialData }: ComposeModalProps) 
               />
 
               {/* Attachments */}
-              {form.attachments.length > 0 && (
-                <div className="px-4 py-2 border-t border-border flex flex-wrap gap-2">
-                  {form.attachments.map((file, i) => (
-                    <Badge key={i} variant="secondary" className="flex items-center gap-1.5 pr-1">
-                      <Paperclip className="w-3 h-3" />
-                      <span className="max-w-[120px] truncate text-xs">{file.name}</span>
-                      <span className="text-muted-foreground text-xs">({formatBytes(file.size)})</span>
-                      <button onClick={() => removeFile(i)} className="ml-1 hover:text-destructive transition-colors">
-                        <X className="w-3 h-3" />
-                      </button>
-                    </Badge>
-                  ))}
-                </div>
-              )}
+              {form.attachments.length > 0 && (() => {
+                const totalSize = form.attachments.reduce((s, f) => s + f.size, 0);
+                const useCloudLink = totalSize > 3 * 1024 * 1024; // 3 MB threshold matches send-email backend
+                return (
+                  <div className="border-t border-border">
+                    {useCloudLink && (
+                      <div className="px-4 py-2 bg-blue-50/60 border-b border-blue-200 text-[11px] text-blue-900 flex items-center gap-2">
+                        <Paperclip className="w-3 h-3 shrink-0" />
+                        <span>
+                          Total {formatBytes(totalSize)} exceeds Cloudflare's 5 MiB inline limit — files will be sent as <b>cloud download links</b> (30-day expiry).
+                        </span>
+                      </div>
+                    )}
+                    <div className="px-4 py-2 flex flex-wrap gap-2">
+                      {form.attachments.map((file, i) => (
+                        <Badge
+                          key={i}
+                          variant="secondary"
+                          className={`flex items-center gap-1.5 pr-1 ${useCloudLink ? 'bg-blue-100 text-blue-900 hover:bg-blue-100' : ''}`}
+                        >
+                          <Paperclip className="w-3 h-3" />
+                          <span className="max-w-[120px] truncate text-xs">{file.name}</span>
+                          <span className="text-muted-foreground text-xs">({formatBytes(file.size)})</span>
+                          <button onClick={() => removeFile(i)} className="ml-1 hover:text-destructive transition-colors">
+                            <X className="w-3 h-3" />
+                          </button>
+                        </Badge>
+                      ))}
+                    </div>
+                  </div>
+                );
+              })()}
 
               {/* Footer */}
               <div className="flex items-center gap-2 px-4 py-3 border-t border-border">
