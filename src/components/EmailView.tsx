@@ -1,6 +1,6 @@
 import { motion } from 'framer-motion';
 import {
-  Reply, Forward, Trash2, Star, MailOpen, MoreHorizontal,
+  Reply, ReplyAll, Forward, Trash2, Star, MailOpen, MoreHorizontal,
   Paperclip, Download, ChevronLeft, AlertTriangle, Inbox, RotateCcw,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -25,7 +25,12 @@ interface EmailViewProps {
 export function EmailView({ email }: EmailViewProps) {
   const { setSelectedEmail } = useEmailStore();
   const { toggleStar, deleteEmail, markUnread, moveToFolder } = useEmailMutations();
-  const { replyTo, forwardEmail } = useEmailActions();
+  const { replyTo, replyAll, forwardEmail } = useEmailActions();
+
+  // Show Reply-All only when there's more than one "other party" on the
+  // conversation (i.e. CC has anyone OR To has more than one address). For
+  // single-recipient mail, Reply All would be identical to Reply, so we hide it.
+  const hasMultipleRecipients = (email.to?.length ?? 0) + (email.cc?.length ?? 0) > 1;
   const { toast } = useToast();
 
   const isInTrash = email.folder === 'trash';
@@ -80,6 +85,12 @@ export function EmailView({ email }: EmailViewProps) {
           <Reply className="w-4 h-4 lg:w-3.5 lg:h-3.5" />
           <span className="hidden lg:inline">Reply</span>
         </Button>
+        {hasMultipleRecipients && (
+          <Button variant="ghost" size="sm" className="gap-1.5 text-muted-foreground" onClick={() => replyAll(email)} aria-label="Reply All">
+            <ReplyAll className="w-4 h-4 lg:w-3.5 lg:h-3.5" />
+            <span className="hidden lg:inline">Reply All</span>
+          </Button>
+        )}
         <Button variant="ghost" size="sm" className="gap-1.5 text-muted-foreground" onClick={() => forwardEmail(email)} aria-label="Forward">
           <Forward className="w-4 h-4 lg:w-3.5 lg:h-3.5" />
           <span className="hidden lg:inline">Forward</span>
@@ -215,10 +226,15 @@ export function EmailView({ email }: EmailViewProps) {
           {/* Quick Reply */}
           <div className="mt-8">
             <Separator className="mb-4" />
-            <div className="flex gap-3">
+            <div className="flex flex-wrap gap-3">
               <Button variant="outline" size="sm" className="gap-1.5" onClick={() => replyTo(email)}>
                 <Reply className="w-3.5 h-3.5" /> Reply
               </Button>
+              {hasMultipleRecipients && (
+                <Button variant="outline" size="sm" className="gap-1.5" onClick={() => replyAll(email)}>
+                  <ReplyAll className="w-3.5 h-3.5" /> Reply All
+                </Button>
+              )}
               <Button variant="outline" size="sm" className="gap-1.5" onClick={() => forwardEmail(email)}>
                 <Forward className="w-3.5 h-3.5" /> Forward
               </Button>

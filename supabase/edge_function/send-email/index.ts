@@ -13,10 +13,11 @@ interface SendPayload {
   references?: string[];
 }
 
-// Cloudflare Email Sending caps each request at 5 MiB (subject + body + base64 attachments).
-// Anything that pushes total above this threshold gets converted to a signed-URL
-// download link in the message body instead of an inline attachment.
-const INLINE_TOTAL_THRESHOLD = 3 * 1024 * 1024;   // 3 MB raw → ~4 MB base64 → safely under 5 MiB
+// Cloudflare Email Sending caps each request at 5 MiB (subject + body + base64
+// attachments). Anything that pushes total above this threshold gets converted
+// to a signed-URL download link in the message body instead of an inline
+// attachment.
+const INLINE_TOTAL_THRESHOLD = 3 * 1024 * 1024;   // 3 MB raw → ~4 MB base64
 const SIGNED_URL_TTL_SECONDS = 30 * 24 * 60 * 60; // 30 days
 
 function splitAddresses(raw: string | undefined | null): string[] {
@@ -102,8 +103,6 @@ Deno.serve(async (req: Request) => {
     const totalRawBytes = prepared.reduce((s, p) => s + p.bytes.byteLength, 0);
     const subjectFinal = payload.subject?.trim() || '(no subject)';
 
-    // Decide: all inline OR all-as-link. Split-mode is more complex UX; threshold-based
-    // toggle keeps the sender's mental model simple ('small mail = files inline').
     let inlineAtts: PreparedAttachment[] = [];
     const linkedFiles: LinkedFile[] = [];
 
@@ -158,11 +157,15 @@ Deno.serve(async (req: Request) => {
     }
 
     const messageId = `<${providerId}@${fromEmail.split('@')[1]}>`;
+    const inReplyToFinal = payload.inReplyTo?.trim() || null;
+    const referencesFinal = payload.references?.length ? payload.references : null;
 
     const insertEmail = await admin.from('emails').insert({
       user_id: user.id,
       account_id: payload.accountId,
       message_id: messageId,
+      in_reply_to: inReplyToFinal,
+      email_references: referencesFinal,
       folder: 'sent',
       from_address: fromEmail,
       from_name: fromDisplayName,

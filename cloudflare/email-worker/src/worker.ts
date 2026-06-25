@@ -49,6 +49,11 @@ interface Address { address: string; name?: string | null }
 
 interface OutboundPayload {
   messageId: string;
+  // RFC 5322 threading headers. inReplyTo points at the parent message;
+  // references is the full ordered chain (root → ... → parent). receive-email
+  // persists both so Reply / Reply-All can continue the thread.
+  inReplyTo?: string;
+  references?: string[];
   from: Address;
   to: Address[];
   cc?: Address[];
@@ -57,6 +62,14 @@ interface OutboundPayload {
   html?: string;
   date?: string;
   attachments?: Array<{ filename: string; mimeType?: string; size?: number; contentBase64: string }>;
+}
+
+// Normalize a list of Message-ID tokens. RFC 5322 References header is a
+// space-separated list of <id@domain> tokens, but real-world senders use commas
+// or stray whitespace. We split on any whitespace OR comma, strip empties.
+function parseReferencesHeader(raw: string | null | undefined): string[] {
+  if (!raw) return [];
+  return raw.split(/[\s,]+/).map((s) => s.trim()).filter(Boolean);
 }
 
 function bytesToHex(bytes: Uint8Array): string {
@@ -142,6 +155,18 @@ export default {
     const headerMessageId = message.headers.get('message-id');
     const messageId = (parsed.messageId || headerMessageId || `<${crypto.randomUUID()}@cf-worker>`).trim();
 
+    // Pull threading headers. PostalMime exposes these directly when present;
+    // we fall back to raw message headers because some MTAs only include them
+    // there. References is multi-token, In-Reply-To is single-token.
+    const parsedInReplyTo = (parsed as { inReplyTo?: string }).inReplyTo;
+    const parsedReferences = (parsed as { references?: string | string[] }).references;
+    const headerInReplyTo = message.headers.get('in-reply-to') ?? undefined;
+    const headerReferences = message.headers.get('references') ?? undefined;
+    const inReplyTo = (parsedInReplyTo || headerInReplyTo || '').trim() || undefined;
+    const references = Array.isArray(parsedReferences)
+      ? parsedReferences.map((s) => s.trim()).filter(Boolean)
+      : parseReferencesHeader(typeof parsedReferences === 'string' ? parsedReferences : headerReferences);
+
     const toList: Address[] = (parsed.to ?? []).map((a) => ({
       address: a.address ?? message.to,
       name: a.name ?? null,
@@ -155,6 +180,8 @@ export default {
 
     const payload: OutboundPayload = {
       messageId,
+      inReplyTo,
+      references: references.length ? references : undefined,
       from: {
         address: parsed.from?.address ?? message.from,
         name: parsed.from?.name ?? null,

@@ -28,6 +28,9 @@ export interface Attachment {
   size: number; // bytes
   mimeType: string;
   url: string;
+  /** Path inside the `attachments` storage bucket. Forwarding needs this to
+   *  re-attach without re-uploading the bytes. */
+  storagePath?: string;
 }
 
 export interface Email {
@@ -47,6 +50,12 @@ export interface Email {
   date: string; // ISO
   attachments: Attachment[];
   labels?: string[];
+  /** RFC 5322 Message-ID of this email — needed so replies can set In-Reply-To. */
+  messageId?: string | null;
+  /** Message-ID of the email this one is a reply to (null for thread roots). */
+  inReplyTo?: string | null;
+  /** Ordered chain of ancestor Message-IDs (root → ... → parent). */
+  references?: string[] | null;
 }
 
 export interface EmailAccount {
@@ -128,6 +137,18 @@ export interface AdminUserRow {
   domainCount: number;
 }
 
+/**
+ * Files attached from an existing email (used by Forward) — these live in
+ * Supabase Storage already, so we pass storage refs instead of File blobs.
+ * The send-email edge fn pulls bytes from these paths just like fresh uploads.
+ */
+export interface ExistingAttachmentRef {
+  storagePath: string;
+  filename: string;
+  mimeType?: string;
+  sizeBytes?: number;
+}
+
 export interface ComposeData {
   to: string;
   cc: string;
@@ -137,6 +158,13 @@ export interface ComposeData {
   attachments: File[];
   /** Optional alias to send AS. null/undefined = primary mailbox. */
   fromAliasId?: string | null;
+  /** RFC 5322 In-Reply-To header. Set by Reply / Reply-All for thread chaining. */
+  inReplyTo?: string | null;
+  /** RFC 5322 References header (full chain). Set by Reply / Reply-All. */
+  references?: string[] | null;
+  /** Attachments pulled forward from a Forward action. send-email reads them
+   *  from storage and includes them alongside `attachments` File uploads. */
+  existingAttachments?: ExistingAttachmentRef[];
 }
 
 export interface AuthUser {

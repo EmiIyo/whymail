@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, Minimize2, Maximize2, Paperclip, Send, ChevronDown, FileText } from 'lucide-react';
@@ -38,7 +38,46 @@ export function ComposeModal({ open, onClose, initialData }: ComposeModalProps) 
     body: initialData?.body ?? '',
     attachments: [],
     fromAliasId: initialData?.fromAliasId ?? null,
+    inReplyTo: initialData?.inReplyTo ?? null,
+    references: initialData?.references ?? null,
+    existingAttachments: initialData?.existingAttachments,
   });
+
+  // Sync form when the modal opens OR when initialData reference changes while
+  // it's already open. The modal stays mounted in Layout, so bare useState
+  // initializers only run on first mount; without this effect Reply/Forward
+  // wouldn't prefill, AND opening a fresh "Compose" after a Reply would leak
+  // the old Reply's data into the form (because initialData=null does not
+  // trigger a reset on its own).
+  const prevOpenRef = useRef(open);
+  useEffect(() => {
+    const justOpened = open && !prevOpenRef.current;
+    prevOpenRef.current = open;
+    if (!open) return; // ignore reference flips while modal is closed
+    // Reset when modal just opened (fresh empty form OR prefilled) OR when
+    // initialData reference changed while open (Reply pressed while already
+    // composing). When initialData is null and we just opened, this lands an
+    // empty form — exactly what "Compose +" should show.
+    if (!justOpened && !initialData) return;
+    setForm({
+      to: initialData?.to ?? '',
+      cc: initialData?.cc ?? '',
+      bcc: initialData?.bcc ?? '',
+      subject: initialData?.subject ?? '',
+      body: initialData?.body ?? '',
+      attachments: [],
+      fromAliasId: initialData?.fromAliasId ?? null,
+      inReplyTo: initialData?.inReplyTo ?? null,
+      references: initialData?.references ?? null,
+      existingAttachments: initialData?.existingAttachments,
+    });
+    setShowCC(!!initialData?.cc);
+    setShowBCC(!!initialData?.bcc);
+  }, [open, initialData]);
+
+  /** Remove a forwarded (already-in-storage) attachment from the outgoing message. */
+  const removeExistingAttachment = (idx: number) =>
+    setForm((f) => ({ ...f, existingAttachments: (f.existingAttachments ?? []).filter((_, i) => i !== idx) }));
 
   const update = <K extends keyof ComposeData>(k: K, v: ComposeData[K]) => setForm(f => ({ ...f, [k]: v }));
 
@@ -228,24 +267,39 @@ export function ComposeModal({ open, onClose, initialData }: ComposeModalProps) 
                 className="flex-1 min-h-[220px] border-0 shadow-none focus-visible:ring-0 resize-none text-sm px-4 py-3 rounded-none"
               />
 
-              {/* Attachments */}
-              {form.attachments.length > 0 && (() => {
-                const totalSize = form.attachments.reduce((s, f) => s + f.size, 0);
-                const useCloudLink = totalSize > 3 * 1024 * 1024; // 3 MB threshold matches send-email backend
+              {/* Attachments — fresh uploads + forwarded refs share the 3-MB cloud-link threshold */}
+              {(form.attachments.length > 0 || (form.existingAttachments?.length ?? 0) > 0) && (() => {
+                const freshSize = form.attachments.reduce((s, f) => s + f.size, 0);
+                const existingSize = (form.existingAttachments ?? []).reduce((s, e) => s + (e.sizeBytes ?? 0), 0);
+                const totalSize = freshSize + existingSize;
+                const useCloudLink = totalSize > 3 * 1024 * 1024; // matches send-email backend threshold
                 return (
                   <div className="border-t border-border">
                     {useCloudLink && (
                       <div className="px-4 py-2 bg-blue-50/60 border-b border-blue-200 text-[11px] text-blue-900 flex items-center gap-2">
                         <Paperclip className="w-3 h-3 shrink-0" />
-                        <span>
-                          Total {formatBytes(totalSize)} exceeds Cloudflare's 5 MiB inline limit — files will be sent as <b>cloud download links</b> (30-day expiry).
-                        </span>
+                        <span>Over 3 MB — sending as cloud link.</span>
                       </div>
                     )}
                     <div className="px-4 py-2 flex flex-wrap gap-2">
+                      {(form.existingAttachments ?? []).map((ref, i) => (
+                        <Badge
+                          key={`existing-${i}`}
+                          variant="secondary"
+                          className={`flex items-center gap-1.5 pr-1 ${useCloudLink ? 'bg-blue-100 text-blue-900 hover:bg-blue-100' : 'bg-amber-50 text-amber-900 hover:bg-amber-50'}`}
+                          title="Forwarded from the original message"
+                        >
+                          <Paperclip className="w-3 h-3" />
+                          <span className="max-w-[120px] truncate text-xs">{ref.filename}</span>
+                          {ref.sizeBytes !== undefined && <span className="text-muted-foreground text-xs">({formatBytes(ref.sizeBytes)})</span>}
+                          <button onClick={() => removeExistingAttachment(i)} className="ml-1 hover:text-destructive transition-colors">
+                            <X className="w-3 h-3" />
+                          </button>
+                        </Badge>
+                      ))}
                       {form.attachments.map((file, i) => (
                         <Badge
-                          key={i}
+                          key={`new-${i}`}
                           variant="secondary"
                           className={`flex items-center gap-1.5 pr-1 ${useCloudLink ? 'bg-blue-100 text-blue-900 hover:bg-blue-100' : ''}`}
                         >

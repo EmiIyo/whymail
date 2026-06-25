@@ -523,14 +523,28 @@ export const mailApi = {
     subject: string;
     body: string;
     attachments?: File[];
+    /** Existing storage refs (used by Forward — files already in storage from inbound). */
+    existingAttachments?: Array<{ storagePath: string; filename: string; mimeType?: string; sizeBytes?: number }>;
     inReplyTo?: string;
     references?: string[];
   }): Promise<{ success: boolean; messageId?: string; emailId?: string; error?: string }> {
-    let attachmentRefs: AttachmentRef[] = [];
+    let uploadedRefs: AttachmentRef[] = [];
     try {
       if (payload.attachments && payload.attachments.length > 0) {
-        attachmentRefs = await uploadAttachments(payload.userId, payload.attachments);
+        uploadedRefs = await uploadAttachments(payload.userId, payload.attachments);
       }
+      // Build the full attachment list: fresh uploads + existing forwarded refs.
+      // Forwarded refs already live under storagePath; we just hand the path to
+      // send-email so it can stream the bytes back out via signed URL or base64.
+      const allRefs: AttachmentRef[] = [
+        ...uploadedRefs,
+        ...(payload.existingAttachments ?? []).map((e) => ({
+          path: e.storagePath,
+          filename: e.filename,
+          mimeType: e.mimeType,
+          size: e.sizeBytes,
+        })),
+      ];
       const { data, error } = await supabase.functions.invoke('send-email', {
         body: {
           accountId: payload.accountId,
@@ -540,7 +554,7 @@ export const mailApi = {
           bcc: payload.bcc,
           subject: payload.subject,
           body: payload.body,
-          attachments: attachmentRefs,
+          attachments: allRefs,
           inReplyTo: payload.inReplyTo,
           references: payload.references,
         },
@@ -550,8 +564,10 @@ export const mailApi = {
       return { success: true, messageId: data.messageId, emailId: data.emailId };
     } catch (err) {
       // Best-effort cleanup of uploaded attachments if send failed before persistence.
-      if (attachmentRefs.length > 0) {
-        const paths = attachmentRefs.map((a) => a.path);
+      // We only clean uploads from THIS call — forwarded refs belong to the original
+      // inbound mail and must not be deleted.
+      if (uploadedRefs.length > 0) {
+        const paths = uploadedRefs.map((a) => a.path);
         await supabase.storage.from('attachments').remove(paths).catch(() => {});
       }
       return { success: false, error: err instanceof Error ? err.message : 'Send failed' };
@@ -585,6 +601,7 @@ async function rowToEmail(row: Record<string, unknown>): Promise<Email> {
         size: Number(a.size_bytes ?? 0),
         mimeType: (a.mime_type as string) ?? '',
         url,
+        storagePath: (a.storage_path as string | undefined) ?? undefined,
       };
     }),
   );
@@ -604,6 +621,9 @@ async function rowToEmail(row: Record<string, unknown>): Promise<Email> {
     starred: row.is_starred as boolean,
     date: row.sent_at as string,
     attachments: attachmentsResolved,
+    messageId: (row.message_id as string | null | undefined) ?? null,
+    inReplyTo: (row.in_reply_to as string | null | undefined) ?? null,
+    references: (row.email_references as string[] | null | undefined) ?? null,
   };
 }
 
