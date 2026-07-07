@@ -175,22 +175,48 @@ export function EmailView({ email }: EmailViewProps) {
           <Separator className="mb-6" />
 
           {/* Body — sandboxed iframe so the mail's own <style>/<body> rules
-              can't leak out and repaint the surrounding app (Supabase, GitHub
-              and many transactional mails set body{background:#000} which was
-              turning our dropdowns and lists dark). srcdoc keeps it same-origin
-              enough for links but sandbox blocks scripts. */}
+              can't leak out and repaint the surrounding app. Many transactional
+              mails (Supabase, GitHub, ...) set `body{background:#171717}` which
+              was bleeding into our dropdowns and email list, making text
+              invisible. The iframe isolates that completely.
+
+              We inject a <base target="_blank"> so links open in a new tab
+              (sandbox blocks in-frame navigation) and a small stylesheet so
+              images stay within width on mobile and text wraps rather than
+              overflowing. Sandbox flags allow popups (link clicks) but block
+              scripts, forms, and same-origin — safe against XSS. */}
           {email.bodyHtml ? (
             <iframe
               title="Email body"
               sandbox="allow-popups allow-popups-to-escape-sandbox"
-              srcDoc={email.bodyHtml}
-              className="w-full min-h-[400px] border-0"
+              srcDoc={`<!doctype html><html><head><base target="_blank"><meta charset="utf-8"><style>html,body{margin:0;padding:0;color:#111;background:#fff;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Inter,sans-serif;font-size:14px;line-height:1.5;word-wrap:break-word;overflow-wrap:break-word}img,video{max-width:100%;height:auto}table{max-width:100%}pre{white-space:pre-wrap;word-break:break-word}</style></head><body>${email.bodyHtml}</body></html>`}
+              className="w-full min-h-[120px] border-0 block bg-white"
               onLoad={(e) => {
                 const f = e.currentTarget;
-                try {
-                  const h = f.contentDocument?.documentElement?.scrollHeight;
-                  if (h) f.style.height = h + 'px';
-                } catch { /* cross-origin, keep default height */ }
+                const doc = f.contentDocument;
+                if (!doc) return;
+                const measure = () => {
+                  try {
+                    const h = Math.max(
+                      doc.body?.scrollHeight ?? 0,
+                      doc.documentElement?.scrollHeight ?? 0
+                    );
+                    if (h) f.style.height = h + 'px';
+                  } catch { /* ignore */ }
+                };
+                measure();
+                // Re-measure once images finish loading (they often add height).
+                doc.querySelectorAll('img').forEach((img) => {
+                  const el = img as HTMLImageElement;
+                  if (!el.complete) {
+                    el.addEventListener('load', measure, { once: true });
+                    el.addEventListener('error', measure, { once: true });
+                  }
+                });
+                // And whenever fonts swap in / CSS shifts things around.
+                if (typeof ResizeObserver !== 'undefined' && doc.body) {
+                  try { new ResizeObserver(measure).observe(doc.body); } catch { /* ignore */ }
+                }
               }}
             />
           ) : (
