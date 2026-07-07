@@ -148,14 +148,14 @@ export default function AccountsPage() {
   const hasDomains = domains.length > 0;
 
   const Mailbox = ({ acc, isManaged }: { acc: EmailAccount; isManaged: boolean }) => (
-    <div key={acc.id} className="flex items-center gap-3 border border-black/10 rounded-xl px-4 py-3">
-      <div className="w-9 h-9 rounded-full bg-black flex items-center justify-center shrink-0">
-        <span className="text-white text-xs font-semibold">{acc.email[0].toUpperCase()}</span>
+    <div key={acc.id} className="flex items-center gap-3 border border-border rounded-xl px-4 py-3">
+      <div className="w-9 h-9 rounded-full bg-primary flex items-center justify-center shrink-0">
+        <span className="text-primary-foreground text-xs font-semibold">{acc.email[0].toUpperCase()}</span>
       </div>
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2 flex-wrap">
-          <p className="text-sm font-medium text-black truncate">{acc.email}</p>
-          {!acc.enabled && <span className="text-[10px] px-1.5 py-0.5 bg-black/5 text-black/40 rounded font-medium">Disabled</span>}
+          <p className="text-sm font-medium text-foreground truncate">{acc.email}</p>
+          {!acc.enabled && <span className="text-[10px] px-1.5 py-0.5 bg-muted text-muted-foreground rounded font-medium">Disabled</span>}
           {acc.mustChangePassword && (
             <span className="text-[10px] px-1.5 py-0.5 bg-amber-100 text-amber-700 rounded font-medium">
               Pending password change
@@ -164,9 +164,9 @@ export default function AccountsPage() {
         </div>
         <div className="flex items-center gap-3 mt-0.5 flex-wrap">
           {acc.name && acc.name !== acc.email && (
-            <span className="text-xs text-black/40">{acc.name}</span>
+            <span className="text-xs text-muted-foreground">{acc.name}</span>
           )}
-          <span className="flex items-center gap-1 text-xs text-black/30">
+          <span className="flex items-center gap-1 text-xs text-muted-foreground">
             <Globe size={10} />
             {acc.email.split('@')[1]}
           </span>
@@ -182,7 +182,7 @@ export default function AccountsPage() {
             </span>
           )}
           {acc.lastActivityAt && (
-            <span className="text-xs text-black/30">
+            <span className="text-xs text-muted-foreground">
               Last activity {formatRelative(acc.lastActivityAt)}
             </span>
           )}
@@ -193,7 +193,7 @@ export default function AccountsPage() {
         {(acc.ownerUserId === user?.id || (acc.domainId && adminDomainIds.has(acc.domainId))) && (
           <button
             onClick={() => setAliasTarget(acc)}
-            className="p-1.5 text-black/40 hover:text-black rounded transition-colors"
+            className="p-1.5 text-muted-foreground hover:text-foreground rounded transition-colors"
             title="Manage aliases"
           >
             <AtSign size={14} />
@@ -210,7 +210,7 @@ export default function AccountsPage() {
             setEditRecovery(acc.recoveryEmail ?? '');
             setEditError(null);
           }}
-          className="p-1.5 text-black/40 hover:text-black rounded transition-colors"
+          className="p-1.5 text-muted-foreground hover:text-foreground rounded transition-colors"
           title="Edit display name & recovery email"
         >
           <Pencil size={14} />
@@ -218,7 +218,7 @@ export default function AccountsPage() {
         {isManaged && (
           <button
             onClick={() => { setResetTarget(acc); setResetPassword(''); setResetConfirm(''); setResetError(null); }}
-            className="p-1.5 text-black/40 hover:text-black rounded transition-colors"
+            className="p-1.5 text-muted-foreground hover:text-foreground rounded transition-colors"
             title="Reset password"
           >
             <KeyRound size={14} />
@@ -226,7 +226,7 @@ export default function AccountsPage() {
         )}
         <button
           onClick={() => toggleMutation.mutate({ id: acc.id, enabled: !acc.enabled })}
-          className="text-black/40 hover:text-black transition-colors"
+          className="text-muted-foreground hover:text-foreground transition-colors"
           title={acc.enabled ? 'Disable (stops receiving)' : 'Enable'}
         >
           {acc.enabled ? <ToggleRight size={20} /> : <ToggleLeft size={20} />}
@@ -236,7 +236,7 @@ export default function AccountsPage() {
             const label = isManaged ? `Delete mailbox ${acc.email} and revoke its login?` : `Delete mailbox ${acc.email}?`;
             if (window.confirm(label)) deleteMutation.mutate(acc.id);
           }}
-          className="p-1.5 text-black/30 hover:text-red-600 rounded transition-colors"
+          className="p-1.5 text-muted-foreground hover:text-red-600 rounded transition-colors"
           title="Delete mailbox"
         >
           <Trash2 size={14} />
@@ -246,44 +246,44 @@ export default function AccountsPage() {
   );
 
   return (
-    <div className="h-full overflow-y-auto bg-white">
-      <div className="sticky top-0 z-10 flex items-center justify-between px-6 py-4 border-b border-black/10 bg-white">
+    <div className="h-full overflow-y-auto bg-background">
+      <div className="sticky top-0 z-10 flex items-center justify-between px-6 py-4 border-b border-border bg-background">
         <div>
-          <h1 className="text-base font-semibold text-black">Mailboxes</h1>
-          <p className="text-xs text-black/40 mt-0.5">Create addresses on your own domains and manage who can use them</p>
+          <h1 className="text-base font-semibold text-foreground">Mailboxes</h1>
+          <p className="text-xs text-muted-foreground mt-0.5">Create addresses on your own domains and manage who can use them</p>
         </div>
         <button
           onClick={() => setShowAdd(true)}
           disabled={!hasDomains}
-          className="flex items-center gap-2 bg-black text-white text-xs font-medium px-3 py-2 rounded-lg hover:bg-black/80 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+          className="flex items-center gap-2 bg-primary text-primary-foreground text-xs font-medium px-3 py-2 rounded-lg hover:bg-primary/80 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
         >
           <Plus size={14} /> New Mailbox
         </button>
       </div>
 
       {!hasDomains && (
-        <div className="mx-6 mt-4 p-4 border border-black/10 rounded-xl bg-black/[0.02] text-xs text-black/60">
+        <div className="mx-6 mt-4 p-4 border border-border rounded-xl bg-accent/40 text-xs text-foreground/70">
           Add a verified domain first on the <span className="font-semibold">Domains</span> page.
         </div>
       )}
 
       {showAdd && hasDomains && (
-        <div className="mx-6 mt-4 p-4 border border-black/10 rounded-xl bg-black/[0.02] space-y-3">
+        <div className="mx-6 mt-4 p-4 border border-border rounded-xl bg-accent/40 space-y-3">
           <div className="flex items-center justify-between">
-            <p className="text-xs font-semibold text-black">New mailbox</p>
-            <button onClick={() => { setShowAdd(false); setForm(EMPTY_FORM); }} className="text-black/30 hover:text-black"><X size={14} /></button>
+            <p className="text-xs font-semibold text-foreground">New mailbox</p>
+            <button onClick={() => { setShowAdd(false); setForm(EMPTY_FORM); }} className="text-muted-foreground hover:text-foreground"><X size={14} /></button>
           </div>
 
           <div className="flex gap-2 text-xs">
             <button
               onClick={() => setField('forSelf', true)}
-              className={`flex-1 px-3 py-2 rounded-lg border transition-colors ${form.forSelf ? 'border-black bg-black text-white' : 'border-black/15 text-black/60 hover:border-black/30'}`}
+              className={`flex-1 px-3 py-2 rounded-lg border transition-colors ${form.forSelf ? 'border-foreground bg-primary text-primary-foreground' : 'border-border text-foreground/70 hover:border-border'}`}
             >
               For myself
             </button>
             <button
               onClick={() => setField('forSelf', false)}
-              className={`flex-1 px-3 py-2 rounded-lg border transition-colors ${!form.forSelf ? 'border-black bg-black text-white' : 'border-black/15 text-black/60 hover:border-black/30'}`}
+              className={`flex-1 px-3 py-2 rounded-lg border transition-colors ${!form.forSelf ? 'border-foreground bg-primary text-primary-foreground' : 'border-border text-foreground/70 hover:border-border'}`}
             >
               For someone else
             </button>
@@ -291,11 +291,11 @@ export default function AccountsPage() {
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
             <div>
-              <label className="text-[10px] font-medium text-black/50 uppercase tracking-wide mb-1 block">Domain</label>
+              <label className="text-[10px] font-medium text-muted-foreground uppercase tracking-wide mb-1 block">Domain</label>
               <select
                 value={form.domainId}
                 onChange={(e) => setField('domainId', e.target.value)}
-                className="w-full text-sm border border-black/20 rounded-lg px-3 py-2 outline-none focus:border-black bg-white"
+                className="w-full text-sm border border-border rounded-lg px-3 py-2 outline-none focus:border-foreground bg-background"
               >
                 <option value="">— pick a domain —</option>
                 {domains.map((d) => (
@@ -306,34 +306,34 @@ export default function AccountsPage() {
               </select>
             </div>
             <div>
-              <label className="text-[10px] font-medium text-black/50 uppercase tracking-wide mb-1 block">Address</label>
-              <div className="flex items-center border border-black/20 rounded-lg overflow-hidden focus-within:border-black">
+              <label className="text-[10px] font-medium text-muted-foreground uppercase tracking-wide mb-1 block">Address</label>
+              <div className="flex items-center border border-border rounded-lg overflow-hidden focus-within:border-foreground">
                 <input
                   type="text"
                   value={form.localPart}
                   onChange={(e) => setField('localPart', e.target.value)}
                   placeholder="admin"
-                  className="flex-1 text-sm px-3 py-2 outline-none bg-white"
+                  className="flex-1 text-sm px-3 py-2 outline-none bg-background"
                 />
-                <span className="text-sm text-black/50 pr-3 select-none">
+                <span className="text-sm text-muted-foreground pr-3 select-none">
                   @{selectedDomain?.name ?? 'domain'}
                 </span>
               </div>
             </div>
             <div className="md:col-span-2">
-              <label className="text-[10px] font-medium text-black/50 uppercase tracking-wide mb-1 block">Display name (optional)</label>
+              <label className="text-[10px] font-medium text-muted-foreground uppercase tracking-wide mb-1 block">Display name (optional)</label>
               <input
                 type="text"
                 value={form.displayName}
                 onChange={(e) => setField('displayName', e.target.value)}
                 placeholder='e.g. "Petbook Support"'
-                className="w-full text-sm border border-black/20 rounded-lg px-3 py-2 outline-none focus:border-black bg-white"
+                className="w-full text-sm border border-border rounded-lg px-3 py-2 outline-none focus:border-foreground bg-background"
               />
             </div>
 
             <div className="md:col-span-2">
-              <label className="text-[10px] font-medium text-black/50 uppercase tracking-wide mb-1 block">
-                Recovery / login email{form.forSelf ? <span className="text-black/30 normal-case font-normal"> (optional)</span> : <span className="text-red-500 ml-0.5">*</span>}
+              <label className="text-[10px] font-medium text-muted-foreground uppercase tracking-wide mb-1 block">
+                Recovery / login email{form.forSelf ? <span className="text-muted-foreground normal-case font-normal"> (optional)</span> : <span className="text-red-500 ml-0.5">*</span>}
               </label>
               <input
                 type="email"
@@ -341,9 +341,9 @@ export default function AccountsPage() {
                 onChange={(e) => setField('recoveryEmail', e.target.value)}
                 placeholder={form.forSelf ? 'your-personal@gmail.com' : "user's personal gmail / outlook"}
                 required={!form.forSelf}
-                className="w-full text-sm border border-black/20 rounded-lg px-3 py-2 outline-none focus:border-black bg-white"
+                className="w-full text-sm border border-border rounded-lg px-3 py-2 outline-none focus:border-foreground bg-background"
               />
-              <p className="text-[10px] text-black/40 mt-1 leading-relaxed">
+              <p className="text-[10px] text-muted-foreground mt-1 leading-relaxed">
                 {form.forSelf
                   ? 'Optional. Used as a backup contact for password reset.'
                   : 'This is the email the user will SIGN IN with. They activate by signing up with this email + the invite code below, and pick their own password.'}
@@ -359,7 +359,7 @@ export default function AccountsPage() {
                     <p className="text-emerald-900/80">
                       1. Visit the sign-up page<br />
                       2. Email: <span className="font-mono font-semibold">{form.recoveryEmail.trim() || '— recovery email above —'}</span><br />
-                      3. Invite code: <span className="font-mono font-semibold bg-white px-1.5 py-0.5 rounded border border-emerald-300">{SIGNUP_INVITE_CODE}</span><br />
+                      3. Invite code: <span className="font-mono font-semibold bg-background px-1.5 py-0.5 rounded border border-emerald-300">{SIGNUP_INVITE_CODE}</span><br />
                       4. They pick their own password and they're in.
                     </p>
                   </div>
@@ -372,13 +372,13 @@ export default function AccountsPage() {
             <button
               onClick={() => addMutation.mutate()}
               disabled={addMutation.isPending}
-              className="bg-black text-white text-xs px-4 py-2 rounded-lg hover:bg-black/80 disabled:opacity-50 transition-colors"
+              className="bg-primary text-primary-foreground text-xs px-4 py-2 rounded-lg hover:bg-primary/80 disabled:opacity-50 transition-colors"
             >
               {addMutation.isPending ? 'Creating…' : 'Create mailbox'}
             </button>
             <button
               onClick={() => { setShowAdd(false); setForm(EMPTY_FORM); }}
-              className="text-xs text-black/40 px-2 hover:text-black"
+              className="text-xs text-muted-foreground px-2 hover:text-foreground"
             >
               Cancel
             </button>
@@ -392,15 +392,15 @@ export default function AccountsPage() {
       <div className="px-6 py-4 space-y-6 pb-24 lg:pb-6">
         {isLoading && (
           <div className="flex items-center justify-center py-16">
-            <div className="w-5 h-5 border-2 border-black/20 border-t-black rounded-full animate-spin" />
+            <div className="w-5 h-5 border-2 border-border border-t-foreground rounded-full animate-spin" />
           </div>
         )}
 
         {!isLoading && accounts.length === 0 && !showAdd && (
           <div className="flex flex-col items-center justify-center py-20 text-center">
-            <Mail size={32} className="text-black/20 mb-3" />
-            <p className="text-sm font-medium text-black/40">No mailboxes yet</p>
-            <p className="text-xs text-black/30 mt-1">
+            <Mail size={32} className="text-muted-foreground/60 mb-3" />
+            <p className="text-sm font-medium text-muted-foreground">No mailboxes yet</p>
+            <p className="text-xs text-muted-foreground mt-1">
               {hasDomains ? 'Create your first mailbox to start sending and receiving.' : 'Add a domain first.'}
             </p>
           </div>
@@ -408,7 +408,7 @@ export default function AccountsPage() {
 
         {myMailboxes.length > 0 && (
           <section>
-            <h2 className="text-[11px] uppercase tracking-wide text-black/40 font-semibold mb-2">My mailboxes</h2>
+            <h2 className="text-[11px] uppercase tracking-wide text-muted-foreground font-semibold mb-2">My mailboxes</h2>
             <div className="space-y-2">
               {myMailboxes.map((acc) => (
                 <Mailbox key={acc.id} acc={acc} isManaged={acc.createdByUserId === user?.id} />
@@ -419,7 +419,7 @@ export default function AccountsPage() {
 
         {managedGroups.length > 0 && (
           <section>
-            <h2 className="text-[11px] uppercase tracking-wide text-black/40 font-semibold mb-2">
+            <h2 className="text-[11px] uppercase tracking-wide text-muted-foreground font-semibold mb-2">
               Users I manage ({managedGroups.length} user{managedGroups.length !== 1 ? 's' : ''} · {managedMailboxes.length} mailbox{managedMailboxes.length !== 1 ? 'es' : ''})
             </h2>
             <div className="space-y-4">
@@ -435,16 +435,16 @@ export default function AccountsPage() {
                 return (
                   <div key={group[0].ownerUserId} className="space-y-2">
                     <div className="flex items-center gap-3 px-1">
-                      <div className="w-8 h-8 rounded-full bg-black flex items-center justify-center shrink-0">
-                        <span className="text-white text-[11px] font-semibold">{initial}</span>
+                      <div className="w-8 h-8 rounded-full bg-primary flex items-center justify-center shrink-0">
+                        <span className="text-primary-foreground text-[11px] font-semibold">{initial}</span>
                       </div>
                       <div className="min-w-0 flex-1">
-                        {groupName && <p className="text-sm font-semibold text-black truncate">{groupName}</p>}
-                        <p className="text-xs text-black/50 font-mono truncate">{login}</p>
+                        {groupName && <p className="text-sm font-semibold text-foreground truncate">{groupName}</p>}
+                        <p className="text-xs text-muted-foreground font-mono truncate">{login}</p>
                       </div>
-                      <span className="text-[10px] text-black/40 shrink-0">{group.length} mailbox{group.length !== 1 ? 'es' : ''}</span>
+                      <span className="text-[10px] text-muted-foreground shrink-0">{group.length} mailbox{group.length !== 1 ? 'es' : ''}</span>
                     </div>
-                    <div className="space-y-2 ml-4 pl-4 border-l border-black/10">
+                    <div className="space-y-2 ml-4 pl-4 border-l border-border">
                       {group.map((acc) => (
                         <Mailbox key={acc.id} acc={acc} isManaged={true} />
                       ))}
@@ -459,38 +459,38 @@ export default function AccountsPage() {
 
       {/* Edit dialog: display name + recovery email */}
       {editTarget && (
-        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl p-6 max-w-md w-full space-y-4">
+        <div className="fixed inset-0 bg-muted-foreground/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-background rounded-2xl p-6 max-w-md w-full space-y-4">
             <div className="flex items-center justify-between">
-              <h2 className="text-base font-semibold text-black">Edit {editTarget.email}</h2>
-              <button onClick={() => setEditTarget(null)} className="text-black/30 hover:text-black"><X size={16} /></button>
+              <h2 className="text-base font-semibold text-foreground">Edit {editTarget.email}</h2>
+              <button onClick={() => setEditTarget(null)} className="text-muted-foreground hover:text-foreground"><X size={16} /></button>
             </div>
             <div>
-              <label className="text-[10px] font-medium text-black/50 uppercase tracking-wide mb-1 block">Display name</label>
+              <label className="text-[10px] font-medium text-muted-foreground uppercase tracking-wide mb-1 block">Display name</label>
               <input
                 type="text"
                 value={editDisplayName}
                 onChange={(e) => setEditDisplayName(e.target.value)}
                 placeholder='e.g. "Petbook Support"'
-                className="w-full text-sm border border-black/20 rounded-lg px-3 py-2 outline-none focus:border-black bg-white"
+                className="w-full text-sm border border-border rounded-lg px-3 py-2 outline-none focus:border-foreground bg-background"
                 autoFocus
               />
-              <p className="text-[10px] text-black/40 mt-1">Shown next to the address in recipient inboxes (Gmail, Outlook, etc.).</p>
+              <p className="text-[10px] text-muted-foreground mt-1">Shown next to the address in recipient inboxes (Gmail, Outlook, etc.).</p>
             </div>
             <div>
-              <label className="text-[10px] font-medium text-black/50 uppercase tracking-wide mb-1 block">Recovery email</label>
+              <label className="text-[10px] font-medium text-muted-foreground uppercase tracking-wide mb-1 block">Recovery email</label>
               <input
                 type="email"
                 value={editRecovery}
                 onChange={(e) => setEditRecovery(e.target.value)}
                 placeholder="user-personal@gmail.com"
-                className="w-full text-sm border border-black/20 rounded-lg px-3 py-2 outline-none focus:border-black bg-white"
+                className="w-full text-sm border border-border rounded-lg px-3 py-2 outline-none focus:border-foreground bg-background"
               />
-              <p className="text-[10px] text-black/40 mt-1">Where the password reset link is sent. Leave blank to disable self-service recovery.</p>
+              <p className="text-[10px] text-muted-foreground mt-1">Where the password reset link is sent. Leave blank to disable self-service recovery.</p>
             </div>
             {editError && <p className="text-xs text-red-600">{editError}</p>}
             <div className="flex gap-2 justify-end">
-              <button onClick={() => setEditTarget(null)} className="text-xs text-black/50 px-3 py-2 hover:text-black">
+              <button onClick={() => setEditTarget(null)} className="text-xs text-muted-foreground px-3 py-2 hover:text-foreground">
                 Cancel
               </button>
               <button
@@ -500,7 +500,7 @@ export default function AccountsPage() {
                   recoveryEmail: editRecovery.trim() || null,
                 })}
                 disabled={editMutation.isPending}
-                className="bg-black text-white text-xs px-4 py-2 rounded-lg hover:bg-black/80 disabled:opacity-50 transition-colors"
+                className="bg-primary text-primary-foreground text-xs px-4 py-2 rounded-lg hover:bg-primary/80 disabled:opacity-50 transition-colors"
               >
                 {editMutation.isPending ? 'Saving…' : 'Save'}
               </button>
@@ -519,45 +519,45 @@ export default function AccountsPage() {
 
       {/* Reset password dialog */}
       {resetTarget && (
-        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl p-6 max-w-md w-full space-y-4">
+        <div className="fixed inset-0 bg-muted-foreground/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-background rounded-2xl p-6 max-w-md w-full space-y-4">
             <div className="flex items-center justify-between">
-              <h2 className="text-base font-semibold text-black">Reset password for {resetTarget.email}</h2>
-              <button onClick={() => setResetTarget(null)} className="text-black/30 hover:text-black"><X size={16} /></button>
+              <h2 className="text-base font-semibold text-foreground">Reset password for {resetTarget.email}</h2>
+              <button onClick={() => setResetTarget(null)} className="text-muted-foreground hover:text-foreground"><X size={16} /></button>
             </div>
-            <p className="text-xs text-black/50">
+            <p className="text-xs text-muted-foreground">
               The user will be required to change this on their next login.
             </p>
             <div>
-              <label className="text-[10px] font-medium text-black/50 uppercase tracking-wide mb-1 block">New password</label>
+              <label className="text-[10px] font-medium text-muted-foreground uppercase tracking-wide mb-1 block">New password</label>
               <input
                 type="text"
                 value={resetPassword}
                 onChange={(e) => setResetPassword(e.target.value)}
                 placeholder="Min 8 characters"
-                className="w-full text-sm border border-black/20 rounded-lg px-3 py-2 outline-none focus:border-black bg-white font-mono"
+                className="w-full text-sm border border-border rounded-lg px-3 py-2 outline-none focus:border-foreground bg-background font-mono"
                 autoFocus
               />
             </div>
             <div>
-              <label className="text-[10px] font-medium text-black/50 uppercase tracking-wide mb-1 block">Confirm</label>
+              <label className="text-[10px] font-medium text-muted-foreground uppercase tracking-wide mb-1 block">Confirm</label>
               <input
                 type="text"
                 value={resetConfirm}
                 onChange={(e) => setResetConfirm(e.target.value)}
                 placeholder="Repeat the password"
-                className="w-full text-sm border border-black/20 rounded-lg px-3 py-2 outline-none focus:border-black bg-white font-mono"
+                className="w-full text-sm border border-border rounded-lg px-3 py-2 outline-none focus:border-foreground bg-background font-mono"
               />
             </div>
             {resetError && <p className="text-xs text-red-600">{resetError}</p>}
             <div className="flex gap-2 justify-end">
-              <button onClick={() => setResetTarget(null)} className="text-xs text-black/50 px-3 py-2 hover:text-black">
+              <button onClick={() => setResetTarget(null)} className="text-xs text-muted-foreground px-3 py-2 hover:text-foreground">
                 Cancel
               </button>
               <button
                 onClick={submitReset}
                 disabled={resetMutation.isPending}
-                className="bg-black text-white text-xs px-4 py-2 rounded-lg hover:bg-black/80 disabled:opacity-50 transition-colors"
+                className="bg-primary text-primary-foreground text-xs px-4 py-2 rounded-lg hover:bg-primary/80 disabled:opacity-50 transition-colors"
               >
                 {resetMutation.isPending ? 'Resetting…' : 'Reset password'}
               </button>
@@ -602,7 +602,7 @@ function DomainAdminToggle({ account }: { account: EmailAccount }) {
       }}
       disabled={pending}
       className={`p-1.5 rounded transition-colors ${
-        isAdmin ? 'text-emerald-600 hover:text-emerald-700' : 'text-black/30 hover:text-black'
+        isAdmin ? 'text-emerald-600 hover:text-emerald-700' : 'text-muted-foreground hover:text-foreground'
       } disabled:opacity-50`}
       title={isAdmin ? 'Revoke domain admin' : 'Grant domain admin (lets this user manage the domain)'}
     >
@@ -807,30 +807,30 @@ function AliasesDialog({ mailbox, onClose }: AliasesDialogProps) {
   };
 
   return (
-    <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-2xl p-6 max-w-md w-full space-y-4 max-h-[90vh] overflow-y-auto">
+    <div className="fixed inset-0 bg-muted-foreground/50 flex items-center justify-center z-50 p-4">
+      <div className="bg-background rounded-2xl p-6 max-w-md w-full space-y-4 max-h-[90vh] overflow-y-auto">
         <div className="flex items-center justify-between">
           <div>
-            <h2 className="text-base font-semibold text-black">Aliases for {mailbox.email}</h2>
-            <p className="text-[11px] text-black/50 mt-0.5">Other addresses that deliver to this inbox</p>
+            <h2 className="text-base font-semibold text-foreground">Aliases for {mailbox.email}</h2>
+            <p className="text-[11px] text-muted-foreground mt-0.5">Other addresses that deliver to this inbox</p>
           </div>
-          <button onClick={onClose} className="text-black/30 hover:text-black"><X size={16} /></button>
+          <button onClick={onClose} className="text-muted-foreground hover:text-foreground"><X size={16} /></button>
         </div>
 
-        <div className="border border-black/10 rounded-xl divide-y divide-black/5">
-          {isLoading && <div className="px-3 py-3 text-xs text-black/40">Loading…</div>}
+        <div className="border border-border rounded-xl divide-y divide-black/5">
+          {isLoading && <div className="px-3 py-3 text-xs text-muted-foreground">Loading…</div>}
           {!isLoading && aliases.length === 0 && (
-            <div className="px-3 py-3 text-[11px] text-black/40">
+            <div className="px-3 py-3 text-[11px] text-muted-foreground">
               No aliases yet. Add one below — mail to that address will arrive in this inbox.
             </div>
           )}
           {aliases.map((a) => (
             <div key={a.id} className="px-3 py-2.5 flex items-center gap-2">
-              <div className="w-7 h-7 rounded-full bg-black/5 flex items-center justify-center shrink-0">
-                <AtSign size={12} className="text-black/40" />
+              <div className="w-7 h-7 rounded-full bg-muted flex items-center justify-center shrink-0">
+                <AtSign size={12} className="text-muted-foreground" />
               </div>
               <div className="flex-1 min-w-0">
-                <p className="text-xs font-medium text-black truncate">{a.aliasEmail}</p>
+                <p className="text-xs font-medium text-foreground truncate">{a.aliasEmail}</p>
                 {editingId === a.id ? (
                   <div className="flex gap-1 mt-1">
                     <input
@@ -838,20 +838,20 @@ function AliasesDialog({ mailbox, onClose }: AliasesDialogProps) {
                       value={editingName}
                       onChange={(e) => setEditingName(e.target.value)}
                       placeholder="Display name (e.g. Petbook Support)"
-                      className="flex-1 text-xs border border-black/15 rounded px-2 py-1 outline-none focus:border-black"
+                      className="flex-1 text-xs border border-border rounded px-2 py-1 outline-none focus:border-foreground"
                       autoFocus
                     />
                     <button
                       onClick={() => updateMutation.mutate({ id: a.id, name: editingName.trim() || null })}
-                      className="text-xs bg-black text-white px-2 rounded"
+                      className="text-xs bg-primary text-primary-foreground px-2 rounded"
                     >Save</button>
                     <button
                       onClick={() => setEditingId(null)}
-                      className="text-xs text-black/50 px-1"
+                      className="text-xs text-muted-foreground px-1"
                     >×</button>
                   </div>
                 ) : (
-                  <p className="text-[10px] text-black/40 truncate">
+                  <p className="text-[10px] text-muted-foreground truncate">
                     {a.displayName ? `Display name: ${a.displayName}` : 'No display name override'}
                   </p>
                 )}
@@ -860,7 +860,7 @@ function AliasesDialog({ mailbox, onClose }: AliasesDialogProps) {
                 <>
                   <button
                     onClick={() => { setEditingId(a.id); setEditingName(a.displayName ?? ''); setError(null); }}
-                    className="p-1.5 text-black/40 hover:text-black rounded transition-colors"
+                    className="p-1.5 text-muted-foreground hover:text-foreground rounded transition-colors"
                     title="Edit display name"
                   >
                     <Pencil size={12} />
@@ -870,7 +870,7 @@ function AliasesDialog({ mailbox, onClose }: AliasesDialogProps) {
                       if (window.confirm(`Remove alias ${a.aliasEmail}?`)) removeMutation.mutate(a.id);
                     }}
                     disabled={removeMutation.isPending}
-                    className="p-1.5 text-black/30 hover:text-red-600 rounded transition-colors"
+                    className="p-1.5 text-muted-foreground hover:text-red-600 rounded transition-colors"
                     title="Remove"
                   >
                     <Trash2 size={12} />
@@ -881,46 +881,46 @@ function AliasesDialog({ mailbox, onClose }: AliasesDialogProps) {
           ))}
         </div>
 
-        <div className="border-t border-black/10 pt-3 space-y-2">
-          <p className="text-xs font-semibold text-black">Add new alias</p>
-          <div className="flex items-center border border-black/15 rounded-lg overflow-hidden focus-within:border-black">
+        <div className="border-t border-border pt-3 space-y-2">
+          <p className="text-xs font-semibold text-foreground">Add new alias</p>
+          <div className="flex items-center border border-border rounded-lg overflow-hidden focus-within:border-foreground">
             <input
               type="text"
               value={newLocal}
               onChange={(e) => setNewLocal(e.target.value)}
               placeholder="e.g. info"
-              className="flex-1 text-sm px-3 py-2 outline-none bg-white"
+              className="flex-1 text-sm px-3 py-2 outline-none bg-background"
             />
-            <span className="text-sm text-black/50 pr-3 select-none">@{domainPart}</span>
+            <span className="text-sm text-muted-foreground pr-3 select-none">@{domainPart}</span>
           </div>
           <input
             type="text"
             value={newDisplayName}
             onChange={(e) => setNewDisplayName(e.target.value)}
             placeholder="Display name (optional, e.g. Petbook Support)"
-            className="w-full text-sm border border-black/15 rounded-lg px-3 py-2 outline-none focus:border-black bg-white"
+            className="w-full text-sm border border-border rounded-lg px-3 py-2 outline-none focus:border-foreground bg-background"
           />
           {error && <p className="text-xs text-red-600">{error}</p>}
           <div className="flex gap-2">
             <button
               onClick={() => addMutation.mutate()}
               disabled={addMutation.isPending || !newLocal.trim()}
-              className="bg-black text-white text-xs px-4 py-2 rounded-lg hover:bg-black/80 disabled:opacity-50 transition-colors"
+              className="bg-primary text-primary-foreground text-xs px-4 py-2 rounded-lg hover:bg-primary/80 disabled:opacity-50 transition-colors"
             >
               {addMutation.isPending ? 'Adding…' : 'Add alias'}
             </button>
-            <button onClick={onClose} className="text-xs text-black/50 px-2 hover:text-black">Done</button>
+            <button onClick={onClose} className="text-xs text-muted-foreground px-2 hover:text-foreground">Done</button>
           </div>
         </div>
 
-        <div className="border-t border-black/10 pt-3 space-y-2">
+        <div className="border-t border-border pt-3 space-y-2">
           <div className="flex items-center justify-between">
-            <p className="text-xs font-semibold text-black">Bulk import</p>
+            <p className="text-xs font-semibold text-foreground">Bulk import</p>
             <button
               type="button"
               onClick={() => fileInputRef.current?.click()}
               disabled={bulkMutation.isPending}
-              className="flex items-center gap-1.5 text-xs text-black/60 hover:text-black disabled:opacity-50"
+              className="flex items-center gap-1.5 text-xs text-foreground/70 hover:text-foreground disabled:opacity-50"
             >
               <Upload size={12} />
               Choose file…
@@ -936,7 +936,7 @@ function AliasesDialog({ mailbox, onClose }: AliasesDialogProps) {
               }}
             />
           </div>
-          <p className="text-[10px] text-black/40 leading-relaxed">
+          <p className="text-[10px] text-muted-foreground leading-relaxed">
             <span className="font-medium">.csv / .tsv / .txt / .xlsx</span> — auto-detects delimiter (comma, tab, semicolon). First column = localpart, second column = display name (optional). Domain auto-set to <span className="font-mono">@{domainPart}</span>.
           </p>
 
@@ -945,21 +945,21 @@ function AliasesDialog({ mailbox, onClose }: AliasesDialogProps) {
               <p className="text-xs text-emerald-900 font-medium">
                 Found {bulkRows.length} alias{bulkRows.length !== 1 ? 'es' : ''}
               </p>
-              <ul className="text-[11px] text-black/65 space-y-0.5 max-h-24 overflow-y-auto font-mono">
+              <ul className="text-[11px] text-foreground/70 space-y-0.5 max-h-24 overflow-y-auto font-mono">
                 {bulkRows.slice(0, 6).map((r, i) => (
                   <li key={i} className="truncate">
                     {r.localPart}@{domainPart}{r.displayName ? ` — ${r.displayName}` : ''}
                   </li>
                 ))}
                 {bulkRows.length > 6 && (
-                  <li className="text-black/40 not-italic">… and {bulkRows.length - 6} more</li>
+                  <li className="text-muted-foreground not-italic">… and {bulkRows.length - 6} more</li>
                 )}
               </ul>
               <div className="flex gap-2">
                 <button
                   onClick={() => bulkMutation.mutate()}
                   disabled={bulkMutation.isPending}
-                  className="bg-emerald-700 text-white text-xs px-3 py-1.5 rounded-lg hover:bg-emerald-800 disabled:opacity-50"
+                  className="bg-emerald-700 text-primary-foreground text-xs px-3 py-1.5 rounded-lg hover:bg-emerald-800 disabled:opacity-50"
                 >
                   {bulkMutation.isPending ? 'Importing…' : `Import ${bulkRows.length}`}
                 </button>
@@ -970,7 +970,7 @@ function AliasesDialog({ mailbox, onClose }: AliasesDialogProps) {
                     if (fileInputRef.current) fileInputRef.current.value = '';
                   }}
                   disabled={bulkMutation.isPending}
-                  className="text-xs text-black/50 px-2 hover:text-black disabled:opacity-50"
+                  className="text-xs text-muted-foreground px-2 hover:text-foreground disabled:opacity-50"
                 >
                   Clear
                 </button>
@@ -979,7 +979,7 @@ function AliasesDialog({ mailbox, onClose }: AliasesDialogProps) {
           )}
 
           {bulkStatus && (
-            <p className="text-[11px] text-black/60 whitespace-pre-line bg-black/[0.02] border border-black/10 rounded p-2">
+            <p className="text-[11px] text-foreground/70 whitespace-pre-line bg-accent/40 border border-border rounded p-2">
               {bulkStatus}
             </p>
           )}

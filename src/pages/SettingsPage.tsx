@@ -169,20 +169,20 @@ export default function SettingsPage() {
   });
 
   return (
-    <div className="h-full overflow-y-auto bg-white">
+    <div className="h-full overflow-y-auto bg-background">
       <div className="max-w-2xl mx-auto px-6 py-6">
-        <h1 className="text-base font-semibold text-black mb-6">Settings</h1>
+        <h1 className="text-base font-semibold text-foreground mb-6">Settings</h1>
 
         {/* Tab bar */}
-        <div className="flex gap-1 border-b border-black/10 mb-6">
+        <div className="flex gap-1 border-b border-border mb-6">
           {tabs.map(tab => (
             <button
               key={tab.key}
               onClick={() => setActiveTab(tab.key)}
               className={`flex items-center gap-1.5 px-3 py-2 text-xs font-medium border-b-2 transition-colors -mb-px ${
                 activeTab === tab.key
-                  ? 'border-black text-black'
-                  : 'border-transparent text-black/40 hover:text-black/70'
+                  ? 'border-foreground text-foreground'
+                  : 'border-transparent text-muted-foreground hover:text-foreground/75'
               }`}
             >
               {tab.icon} {tab.label}
@@ -193,31 +193,31 @@ export default function SettingsPage() {
         {/* Profile */}
         {activeTab === 'profile' && (
           <div className="space-y-4">
-            <div className="border border-black/10 rounded-xl p-5">
-              <h2 className="text-sm font-semibold text-black mb-4">Personal Information</h2>
+            <div className="border border-border rounded-xl p-5">
+              <h2 className="text-sm font-semibold text-foreground mb-4">Personal Information</h2>
               <div className="space-y-4">
                 <div>
-                  <label className="text-xs font-medium text-black/50 uppercase tracking-wide mb-1.5 block">Display Name</label>
+                  <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-1.5 block">Display Name</label>
                   <input
                     type="text"
                     value={name}
                     onChange={e => setName(e.target.value)}
-                    className="w-full text-sm border border-black/20 rounded-lg px-3 py-2 outline-none focus:border-black bg-white"
+                    className="w-full text-sm border border-border rounded-lg px-3 py-2 outline-none focus:border-foreground bg-background"
                   />
                 </div>
                 <div>
-                  <label className="text-xs font-medium text-black/50 uppercase tracking-wide mb-1.5 block">Email</label>
+                  <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-1.5 block">Email</label>
                   <input
                     type="text"
                     value={user?.email ?? ''}
                     disabled
-                    className="w-full text-sm border border-black/10 rounded-lg px-3 py-2 bg-black/[0.02] text-black/50 cursor-not-allowed"
+                    className="w-full text-sm border border-border rounded-lg px-3 py-2 bg-accent/40 text-muted-foreground cursor-not-allowed"
                   />
                 </div>
                 <button
                   onClick={() => saveMutation.mutate()}
                   disabled={saveMutation.isPending}
-                  className="flex items-center gap-2 bg-black text-white text-xs font-medium px-4 py-2 rounded-lg hover:bg-black/80 disabled:opacity-50 transition-colors"
+                  className="flex items-center gap-2 bg-primary text-primary-foreground text-xs font-medium px-4 py-2 rounded-lg hover:bg-primary/80 disabled:opacity-50 transition-colors"
                 >
                   <Save size={12} /> {saveMutation.isPending ? 'Saving…' : 'Save Changes'}
                 </button>
@@ -228,8 +228,8 @@ export default function SettingsPage() {
 
         {/* Notifications */}
         {activeTab === 'notifications' && (
-          <div className="border border-black/10 rounded-xl p-5">
-            <h2 className="text-sm font-semibold text-black mb-4">Notification Preferences</h2>
+          <div className="border border-border rounded-xl p-5">
+            <h2 className="text-sm font-semibold text-foreground mb-4">Notification Preferences</h2>
             <div className="space-y-4">
               <ToggleRow
                 label="New email"
@@ -257,13 +257,13 @@ export default function SettingsPage() {
 
         {/* Server */}
         {activeTab === 'server' && (
-          <div className="border border-black/10 rounded-xl p-5">
-            <h2 className="text-sm font-semibold text-black mb-2">Mail infrastructure</h2>
-            <p className="text-xs text-black/40 mb-4">Inbound is delivered by Cloudflare Email Routing into a Worker that webhook-posts to the Supabase receive-email function. Outbound is sent through Cloudflare Email Sending (REST API).</p>
-            <div className="p-4 bg-black/[0.02] rounded-lg space-y-1">
-              <p className="text-xs font-mono text-black/60">Provider in: Cloudflare Email Routing</p>
-              <p className="text-xs font-mono text-black/60">Provider out: Cloudflare Email Sending (api.cloudflare.com)</p>
-              <p className="text-xs font-mono text-black/60">Storage: Supabase Postgres + private Storage bucket</p>
+          <div className="border border-border rounded-xl p-5">
+            <h2 className="text-sm font-semibold text-foreground mb-2">Mail infrastructure</h2>
+            <p className="text-xs text-muted-foreground mb-4">Inbound is delivered by Cloudflare Email Routing into a Worker that webhook-posts to the Supabase receive-email function. Outbound is sent through Cloudflare Email Sending (REST API).</p>
+            <div className="p-4 bg-accent/40 rounded-lg space-y-1">
+              <p className="text-xs font-mono text-foreground/70">Provider in: Cloudflare Email Routing</p>
+              <p className="text-xs font-mono text-foreground/70">Provider out: Cloudflare Email Sending (api.cloudflare.com)</p>
+              <p className="text-xs font-mono text-foreground/70">Storage: Supabase Postgres + private Storage bucket</p>
             </div>
           </div>
         )}
@@ -271,41 +271,41 @@ export default function SettingsPage() {
         {/* Security */}
         {activeTab === 'security' && (
           <div className="space-y-4">
-            <div className="border border-black/10 rounded-xl p-5">
-              <h2 className="text-sm font-semibold text-black mb-4 flex items-center gap-2">
+            <div className="border border-border rounded-xl p-5">
+              <h2 className="text-sm font-semibold text-foreground mb-4 flex items-center gap-2">
                 <KeyRound size={14} /> Change password
               </h2>
               <div className="space-y-3">
                 <div>
-                  <label className="text-xs font-medium text-black/50 uppercase tracking-wide mb-1.5 block">Current password</label>
+                  <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-1.5 block">Current password</label>
                   <input
                     type="password"
                     value={currentPwd}
                     onChange={(e) => setCurrentPwd(e.target.value)}
                     placeholder="Your existing password"
-                    className="w-full text-sm border border-black/20 rounded-lg px-3 py-2 outline-none focus:border-black bg-white"
+                    className="w-full text-sm border border-border rounded-lg px-3 py-2 outline-none focus:border-foreground bg-background"
                     autoComplete="current-password"
                   />
                 </div>
                 <div>
-                  <label className="text-xs font-medium text-black/50 uppercase tracking-wide mb-1.5 block">New password</label>
+                  <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-1.5 block">New password</label>
                   <input
                     type="password"
                     value={newPwd}
                     onChange={(e) => setNewPwd(e.target.value)}
                     placeholder="Min 8 characters"
-                    className="w-full text-sm border border-black/20 rounded-lg px-3 py-2 outline-none focus:border-black bg-white"
+                    className="w-full text-sm border border-border rounded-lg px-3 py-2 outline-none focus:border-foreground bg-background"
                     autoComplete="new-password"
                   />
                 </div>
                 <div>
-                  <label className="text-xs font-medium text-black/50 uppercase tracking-wide mb-1.5 block">Confirm password</label>
+                  <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-1.5 block">Confirm password</label>
                   <input
                     type="password"
                     value={newPwdConfirm}
                     onChange={(e) => setNewPwdConfirm(e.target.value)}
                     placeholder="Repeat the new password"
-                    className="w-full text-sm border border-black/20 rounded-lg px-3 py-2 outline-none focus:border-black bg-white"
+                    className="w-full text-sm border border-border rounded-lg px-3 py-2 outline-none focus:border-foreground bg-background"
                     autoComplete="new-password"
                   />
                 </div>
@@ -313,7 +313,7 @@ export default function SettingsPage() {
                 <button
                   onClick={() => passwordMutation.mutate()}
                   disabled={passwordMutation.isPending || !currentPwd || !newPwd || !newPwdConfirm}
-                  className="bg-black text-white text-xs font-medium px-4 py-2 rounded-lg hover:bg-black/80 disabled:opacity-50 transition-colors"
+                  className="bg-primary text-primary-foreground text-xs font-medium px-4 py-2 rounded-lg hover:bg-primary/80 disabled:opacity-50 transition-colors"
                 >
                   {passwordMutation.isPending ? 'Updating…' : 'Update password'}
                 </button>
@@ -321,11 +321,11 @@ export default function SettingsPage() {
             </div>
 
             {ownMailboxes.length > 0 && (
-              <div className="border border-black/10 rounded-xl p-5">
-                <h2 className="text-sm font-semibold text-black mb-1 flex items-center gap-2">
+              <div className="border border-border rounded-xl p-5">
+                <h2 className="text-sm font-semibold text-foreground mb-1 flex items-center gap-2">
                   <ShieldCheck size={14} /> Recovery email
                 </h2>
-                <p className="text-xs text-black/50 mb-4">
+                <p className="text-xs text-muted-foreground mb-4">
                   Where the password reset link is sent if you forget your password.
                 </p>
                 <div className="space-y-3">
@@ -336,13 +336,13 @@ export default function SettingsPage() {
                     return (
                       <div key={mb.id} className="flex items-center gap-2">
                         <div className="flex-1">
-                          <p className="text-xs text-black/50 mb-1">{mb.email}</p>
+                          <p className="text-xs text-muted-foreground mb-1">{mb.email}</p>
                           <input
                             type="email"
                             value={value}
                             onChange={(e) => setRecoveryDraft((d) => ({ ...d, [mb.id]: e.target.value }))}
                             placeholder="personal@gmail.com"
-                            className="w-full text-sm border border-black/20 rounded-lg px-3 py-2 outline-none focus:border-black bg-white"
+                            className="w-full text-sm border border-border rounded-lg px-3 py-2 outline-none focus:border-foreground bg-background"
                           />
                         </div>
                         <button
@@ -351,7 +351,7 @@ export default function SettingsPage() {
                             recoveryEmail: value.trim() || null,
                           })}
                           disabled={!isDirty || recoveryMutation.isPending}
-                          className="bg-black text-white text-xs px-3 py-2 rounded-lg mt-5 hover:bg-black/80 disabled:opacity-30 transition-colors shrink-0"
+                          className="bg-primary text-primary-foreground text-xs px-3 py-2 rounded-lg mt-5 hover:bg-primary/80 disabled:opacity-30 transition-colors shrink-0"
                         >
                           Save
                         </button>
@@ -363,20 +363,20 @@ export default function SettingsPage() {
               </div>
             )}
 
-            <div className="border border-black/10 rounded-xl p-5">
-              <h2 className="text-sm font-semibold text-black mb-4">Account session</h2>
+            <div className="border border-border rounded-xl p-5">
+              <h2 className="text-sm font-semibold text-foreground mb-4">Account session</h2>
               <div className="space-y-3">
                 <div className="flex items-center justify-between py-2">
                   <div>
-                    <p className="text-sm font-medium text-black">Signed in as</p>
-                    <p className="text-xs text-black/40">{user?.email}</p>
+                    <p className="text-sm font-medium text-foreground">Signed in as</p>
+                    <p className="text-xs text-muted-foreground">{user?.email}</p>
                   </div>
-                  <span className="text-[10px] px-2 py-1 bg-black text-white rounded font-medium">Active</span>
+                  <span className="text-[10px] px-2 py-1 bg-primary text-primary-foreground rounded font-medium">Active</span>
                 </div>
-                <div className="border-t border-black/5 pt-3">
+                <div className="border-t border-border/60 pt-3">
                   <button
                     onClick={signOut}
-                    className="text-sm text-black/60 hover:text-black underline underline-offset-2 transition-colors"
+                    className="text-sm text-foreground/70 hover:text-foreground underline underline-offset-2 transition-colors"
                   >
                     Sign out of all devices
                   </button>
@@ -402,8 +402,8 @@ function ToggleRow({ label, desc, checked, onChange, disabled }: ToggleRowProps)
   return (
     <div className="flex items-start justify-between gap-4 py-1">
       <div className="flex-1 min-w-0">
-        <p className="text-sm font-medium text-black">{label}</p>
-        <p className="text-xs text-black/50 mt-0.5 leading-snug">{desc}</p>
+        <p className="text-sm font-medium text-foreground">{label}</p>
+        <p className="text-xs text-muted-foreground mt-0.5 leading-snug">{desc}</p>
       </div>
       <button
         type="button"
@@ -411,11 +411,11 @@ function ToggleRow({ label, desc, checked, onChange, disabled }: ToggleRowProps)
         disabled={disabled}
         aria-pressed={checked}
         className={`relative shrink-0 w-11 h-6 rounded-full transition-colors duration-200 disabled:opacity-50 ${
-          checked ? 'bg-black' : 'bg-black/15'
+          checked ? 'bg-primary' : 'bg-muted'
         }`}
       >
         <span
-          className={`absolute top-0.5 w-5 h-5 bg-white rounded-full shadow-sm transition-transform duration-200 ${
+          className={`absolute top-0.5 w-5 h-5 bg-background rounded-full shadow-sm transition-transform duration-200 ${
             checked ? 'translate-x-[22px]' : 'translate-x-0.5'
           }`}
         />

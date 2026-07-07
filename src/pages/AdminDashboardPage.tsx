@@ -65,10 +65,10 @@ export default function AdminDashboardPage() {
 
 
   return (
-    <div className="h-full overflow-y-auto bg-white">
-      <div className="sticky top-0 z-10 px-6 py-4 border-b border-black/10 bg-white">
-        <h1 className="text-base font-semibold text-black">Admin Dashboard</h1>
-        <p className="text-xs text-black/40 mt-0.5">Platform-wide stats and user management</p>
+    <div className="h-full overflow-y-auto bg-background">
+      <div className="sticky top-0 z-10 px-6 py-4 border-b border-border bg-background">
+        <h1 className="text-base font-semibold text-foreground">Admin Dashboard</h1>
+        <p className="text-xs text-muted-foreground mt-0.5">Platform-wide stats and user management</p>
       </div>
 
       <div className="px-6 py-5 space-y-6 pb-24 lg:pb-6 max-w-5xl mx-auto">
@@ -83,25 +83,25 @@ export default function AdminDashboardPage() {
         {/* User list */}
         <section>
           <div className="flex items-center justify-between mb-3">
-            <h2 className="text-sm font-semibold text-black">Users</h2>
-            <span className="text-xs text-black/40">{filtered.length} of {users.length}</span>
+            <h2 className="text-sm font-semibold text-foreground">Users</h2>
+            <span className="text-xs text-muted-foreground">{filtered.length} of {users.length}</span>
           </div>
 
           {/* Search + role filter */}
           <div className="flex gap-2 mb-3">
             <div className="relative flex-1">
-              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-black/30" />
+              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
               <input
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 placeholder="Search by email…"
-                className="w-full pl-8 pr-3 py-2 text-sm border border-black/15 rounded-lg outline-none focus:border-black bg-white"
+                className="w-full pl-8 pr-3 py-2 text-sm border border-border rounded-lg outline-none focus:border-foreground bg-background"
               />
             </div>
             <select
               value={roleFilter}
               onChange={(e) => setRoleFilter(e.target.value as RoleFilter)}
-              className="text-sm border border-black/15 rounded-lg px-3 py-2 bg-white outline-none focus:border-black"
+              className="text-sm border border-border rounded-lg px-3 py-2 bg-background outline-none focus:border-foreground"
             >
               <option value="all">All roles</option>
               <option value="super">Super admin</option>
@@ -112,12 +112,12 @@ export default function AdminDashboardPage() {
           </div>
 
           {/* Table */}
-          <div className="border border-black/10 rounded-xl divide-y divide-black/5 overflow-hidden">
+          <div className="border border-border rounded-xl divide-y divide-black/5 overflow-hidden">
             {isLoading && (
-              <div className="px-4 py-8 text-center text-xs text-black/40">Loading…</div>
+              <div className="px-4 py-8 text-center text-xs text-muted-foreground">Loading…</div>
             )}
             {!isLoading && filtered.length === 0 && (
-              <div className="px-4 py-8 text-center text-xs text-black/40">No users match your filter.</div>
+              <div className="px-4 py-8 text-center text-xs text-muted-foreground">No users match your filter.</div>
             )}
             {filtered.map((u) => (
               <UserRow
@@ -160,12 +160,12 @@ interface StatCardProps {
 
 function StatCard({ icon: Icon, label, value, loading }: StatCardProps) {
   return (
-    <div className="border border-black/10 rounded-xl p-4">
+    <div className="border border-border rounded-xl p-4">
       <div className="flex items-center gap-2 mb-2">
-        <Icon className="w-3.5 h-3.5 text-black/40" />
-        <span className="text-[11px] uppercase tracking-wide text-black/40 font-medium">{label}</span>
+        <Icon className="w-3.5 h-3.5 text-muted-foreground" />
+        <span className="text-[11px] uppercase tracking-wide text-muted-foreground font-medium">{label}</span>
       </div>
-      <div className="text-2xl font-semibold text-black tabular-nums">
+      <div className="text-2xl font-semibold text-foreground tabular-nums">
         {loading ? '—' : (value ?? 0).toLocaleString()}
       </div>
     </div>
@@ -188,32 +188,32 @@ function UserRow({ user: u, onGrant, onResetPassword, isResetting }: UserRowProp
         ? 'End-user (mailbox)'
         : 'No access';
   const roleStyle = u.isSuperAdmin
-    ? 'bg-black text-white'
+    ? 'bg-primary text-primary-foreground'
     : u.coAdminDomainIds.length > 0
       ? 'bg-emerald-100 text-emerald-700'
       : u.ownsMailbox
-        ? 'bg-black/5 text-black/60'
+        ? 'bg-muted text-foreground/70'
         : 'bg-amber-50 text-amber-700';
 
   return (
     <div className="px-4 py-3 flex items-center gap-3">
-      <div className="w-8 h-8 rounded-full bg-black/5 flex items-center justify-center shrink-0 text-xs font-semibold text-black/60">
+      <div className="w-8 h-8 rounded-full bg-muted flex items-center justify-center shrink-0 text-xs font-semibold text-foreground/70">
         {(u.email[0] ?? '?').toUpperCase()}
       </div>
       <div className="flex-1 min-w-0">
-        <p className="text-sm text-black truncate">{u.email}</p>
+        <p className="text-sm text-foreground truncate">{u.email}</p>
         <div className="flex items-center gap-2 mt-0.5 flex-wrap">
           <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded ${roleStyle}`}>{role}</span>
           {u.domainCount > 0 && (
-            <span className="text-[10px] font-medium text-black/60 bg-black/5 px-1.5 py-0.5 rounded inline-flex items-center gap-1">
+            <span className="text-[10px] font-medium text-foreground/70 bg-muted px-1.5 py-0.5 rounded inline-flex items-center gap-1">
               <Globe size={9} />
               {u.domainCount} domain{u.domainCount === 1 ? '' : 's'}
             </span>
           )}
           {u.lastSignInAt ? (
-            <span className="text-[10px] text-black/40">Last seen {formatRelative(u.lastSignInAt)}</span>
+            <span className="text-[10px] text-muted-foreground">Last seen {formatRelative(u.lastSignInAt)}</span>
           ) : (
-            <span className="text-[10px] text-black/40">Never signed in</span>
+            <span className="text-[10px] text-muted-foreground">Never signed in</span>
           )}
         </div>
       </div>
@@ -221,7 +221,7 @@ function UserRow({ user: u, onGrant, onResetPassword, isResetting }: UserRowProp
         {!u.isSuperAdmin && (
           <button
             onClick={onGrant}
-            className="p-1.5 text-black/40 hover:text-emerald-600 rounded transition-colors"
+            className="p-1.5 text-muted-foreground hover:text-emerald-600 rounded transition-colors"
             title="Grant domain admin access"
           >
             <ShieldCheck size={14} />
@@ -230,7 +230,7 @@ function UserRow({ user: u, onGrant, onResetPassword, isResetting }: UserRowProp
         <button
           onClick={onResetPassword}
           disabled={isResetting}
-          className="p-1.5 text-black/40 hover:text-black rounded transition-colors disabled:opacity-50"
+          className="p-1.5 text-muted-foreground hover:text-foreground rounded transition-colors disabled:opacity-50"
           title="Send password reset link"
         >
           <KeyRound size={14} />
@@ -269,42 +269,42 @@ function GrantDomainAdminDialog({ user, onClose, onSuccess }: GrantDialogProps) 
   });
 
   return (
-    <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-2xl p-6 max-w-md w-full space-y-4">
+    <div className="fixed inset-0 bg-muted-foreground/50 flex items-center justify-center z-50 p-4">
+      <div className="bg-background rounded-2xl p-6 max-w-md w-full space-y-4">
         <div className="flex items-center justify-between">
-          <h2 className="text-base font-semibold text-black">Grant domain admin to {user.email}</h2>
-          <button onClick={onClose} className="text-black/30 hover:text-black"><X size={16} /></button>
+          <h2 className="text-base font-semibold text-foreground">Grant domain admin to {user.email}</h2>
+          <button onClick={onClose} className="text-muted-foreground hover:text-foreground"><X size={16} /></button>
         </div>
-        <p className="text-xs text-black/50">
+        <p className="text-xs text-muted-foreground">
           The user will be able to manage mailboxes for the selected domain. They will not be able to
           add or delete domains.
         </p>
         <div>
-          <label className="text-[10px] font-medium text-black/50 uppercase tracking-wide mb-1 block">Domain</label>
+          <label className="text-[10px] font-medium text-muted-foreground uppercase tracking-wide mb-1 block">Domain</label>
           <div className="relative">
             <select
               value={domainId}
               onChange={(e) => setDomainId(e.target.value)}
-              className="w-full text-sm border border-black/20 rounded-lg pl-3 pr-9 py-2 outline-none focus:border-black bg-white appearance-none"
+              className="w-full text-sm border border-border rounded-lg pl-3 pr-9 py-2 outline-none focus:border-foreground bg-background appearance-none"
             >
               <option value="">— pick a domain —</option>
               {grantable.map((d) => (
                 <option key={d.id} value={d.id}>{d.name}</option>
               ))}
             </select>
-            <ChevronDown className="absolute right-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-black/40 pointer-events-none" />
+            <ChevronDown className="absolute right-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground pointer-events-none" />
           </div>
           {grantable.length === 0 && (
-            <p className="text-[11px] text-black/40 mt-1">User is already an admin of every domain.</p>
+            <p className="text-[11px] text-muted-foreground mt-1">User is already an admin of every domain.</p>
           )}
         </div>
         {error && <p className="text-xs text-red-600">{error}</p>}
         <div className="flex gap-2 justify-end">
-          <button onClick={onClose} className="text-xs text-black/50 px-3 py-2 hover:text-black">Cancel</button>
+          <button onClick={onClose} className="text-xs text-muted-foreground px-3 py-2 hover:text-foreground">Cancel</button>
           <button
             onClick={() => grantMutation.mutate()}
             disabled={grantMutation.isPending || !domainId}
-            className="bg-black text-white text-xs px-4 py-2 rounded-lg hover:bg-black/80 disabled:opacity-50 transition-colors"
+            className="bg-primary text-primary-foreground text-xs px-4 py-2 rounded-lg hover:bg-primary/80 disabled:opacity-50 transition-colors"
           >
             {grantMutation.isPending ? 'Granting…' : 'Grant access'}
           </button>

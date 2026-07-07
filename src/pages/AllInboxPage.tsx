@@ -42,58 +42,58 @@ export default function AllInboxPage() {
   const unreadCount = emails.filter(e => !e.read).length;
 
   return (
-    <div className="flex h-full overflow-hidden">
+    <div className="flex h-full overflow-hidden bg-background text-foreground">
       {/* List pane */}
-      <div className={`${showView ? 'hidden lg:flex w-80 xl:w-96 shrink-0' : 'flex flex-1 min-w-0'} border-r border-black/10 flex-col overflow-hidden bg-white`}>
-        <div className="flex items-center justify-between px-4 py-3 border-b border-black/10 shrink-0">
+      <div className={`${showView ? 'hidden lg:flex w-80 xl:w-96 shrink-0' : 'flex flex-1 min-w-0'} border-r border-border flex-col overflow-hidden bg-background`}>
+        <div className="flex items-center justify-between px-4 py-3 border-b border-border shrink-0">
           <div className="flex items-center gap-2">
-            <h2 className="font-semibold text-black text-sm">All Inboxes</h2>
+            <h2 className="font-semibold text-foreground text-sm">All Inboxes</h2>
             {unreadCount > 0 && (
-              <span className="text-[10px] px-1.5 py-0.5 bg-black text-white rounded-full font-medium">{unreadCount}</span>
+              <span className="text-[10px] px-1.5 py-0.5 bg-primary text-primary-foreground rounded-full font-medium">{unreadCount}</span>
             )}
           </div>
-          <span className="text-xs text-black/30">{emails.length} emails</span>
+          <span className="text-xs text-muted-foreground">{emails.length} emails</span>
         </div>
 
         <div className="flex-1 overflow-y-auto">
           {isLoading && (
             <div className="flex items-center justify-center py-16">
-              <div className="w-5 h-5 border-2 border-black/20 border-t-black rounded-full animate-spin" />
+              <div className="w-5 h-5 border-2 border-border border-t-foreground rounded-full animate-spin" />
             </div>
           )}
           {!isLoading && emails.length === 0 && (
             <div className="flex flex-col items-center justify-center py-16 text-center px-4">
-              <Inbox size={32} className="text-black/20 mb-2" />
-              <p className="text-sm text-black/40">No emails</p>
+              <Inbox size={32} className="text-muted-foreground mb-2" />
+              <p className="text-sm text-muted-foreground">No emails</p>
             </div>
           )}
           {emails.map(email => (
             <button
               key={email.id}
               onClick={() => handleSelect(email)}
-              className={`w-full text-left px-4 py-3 border-b border-black/5 hover:bg-black/[0.02] transition-colors ${
-                selected?.id === email.id ? 'bg-black/[0.04]' : ''
+              className={`w-full text-left px-4 py-3 border-b border-border hover:bg-accent/50 transition-colors ${
+                selected?.id === email.id ? 'bg-accent' : ''
               }`}
             >
               <div className="flex items-start gap-3 min-w-0">
                 {/* Avatar */}
-                <div className="w-8 h-8 rounded-full bg-black flex items-center justify-center shrink-0 mt-0.5">
-                  <span className="text-white text-[11px] font-semibold">{getInitials(email.fromName || email.from)}</span>
+                <div className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 mt-0.5 ${!email.read ? 'bg-primary' : 'bg-muted'}`}>
+                  <span className={`text-[11px] font-semibold ${!email.read ? 'text-primary-foreground' : 'text-muted-foreground'}`}>{getInitials(email.fromName || email.from)}</span>
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center justify-between gap-2 mb-0.5">
-                    <span className={`text-xs truncate ${email.read ? 'text-black/60 font-normal' : 'text-black font-semibold'}`}>
+                    <span className={`text-xs truncate ${email.read ? 'text-foreground/70 font-normal' : 'text-foreground font-semibold'}`}>
                       {email.fromName || email.from}
                     </span>
-                    <span className="text-[10px] text-black/30 shrink-0">{formatEmailDate(email.date)}</span>
+                    <span className="text-[10px] text-muted-foreground shrink-0">{formatEmailDate(email.date)}</span>
                   </div>
-                  <p className={`text-xs truncate mb-1 ${email.read ? 'text-black/50' : 'text-black/80'}`}>{email.subject || '(no subject)'}</p>
+                  <p className={`text-xs truncate mb-1 ${email.read ? 'text-muted-foreground' : 'text-foreground/85'}`}>{email.subject || '(no subject)'}</p>
                   <div className="flex items-center gap-1.5 min-w-0">
-                    <span className="text-[10px] px-1.5 py-0.5 bg-black/5 text-black/50 rounded font-medium truncate min-w-0 max-w-full">
+                    <span className="text-[10px] px-1.5 py-0.5 bg-muted text-muted-foreground rounded font-medium truncate min-w-0 max-w-full">
                       {getAccountBadge(email.accountId)}
                     </span>
-                    {email.attachments && email.attachments.length > 0 && <Paperclip size={10} className="text-black/30" />}
-                    {email.starred && <Star size={10} className="text-black fill-black" />}
+                    {email.attachments && email.attachments.length > 0 && <Paperclip size={10} className="text-muted-foreground" />}
+                    {email.starred && <Star size={10} className="text-foreground fill-foreground" />}
                   </div>
                 </div>
               </div>
@@ -109,8 +109,8 @@ export default function AllInboxPage() {
         </div>
       ) : (
         <div className="hidden lg:flex flex-1 items-center justify-center flex-col gap-3 text-center">
-          <Inbox size={40} className="text-black/15" />
-          <p className="text-sm text-black/30">Select an email to read</p>
+          <Inbox size={40} className="text-muted-foreground/50" />
+          <p className="text-sm text-muted-foreground">Select an email to read</p>
         </div>
       )}
     </div>

@@ -80,16 +80,16 @@ export default function ChangePasswordPage() {
   });
 
   return (
-    <div className="min-h-screen bg-white flex items-center justify-center p-4">
+    <div className="min-h-screen bg-background flex items-center justify-center p-4">
       <div className="w-full max-w-md space-y-6">
         <div className="text-center">
-          <div className="w-12 h-12 rounded-full bg-black/5 flex items-center justify-center mx-auto mb-3">
-            <KeyRound size={20} className="text-black" />
+          <div className="w-12 h-12 rounded-full bg-muted flex items-center justify-center mx-auto mb-3">
+            <KeyRound size={20} className="text-foreground" />
           </div>
-          <h1 className="text-xl font-semibold text-black">
+          <h1 className="text-xl font-semibold text-foreground">
             {forced ? 'Set a new password' : 'Change password'}
           </h1>
-          <p className="text-xs text-black/50 mt-1">
+          <p className="text-xs text-muted-foreground mt-1">
             {forced
               ? 'Your administrator created this mailbox with an initial password. Choose a new one to continue.'
               : 'Enter a new password for your account.'}
@@ -98,33 +98,33 @@ export default function ChangePasswordPage() {
 
         <div className="space-y-3">
           <div>
-            <label className="text-[10px] font-medium text-black/50 uppercase tracking-wide mb-1 block">New password</label>
+            <label className="text-[10px] font-medium text-muted-foreground uppercase tracking-wide mb-1 block">New password</label>
             <div className="relative">
               <input
                 type={showPwd ? 'text' : 'password'}
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 placeholder={`Min ${MIN_LEN} characters`}
-                className="w-full text-sm border border-black/20 rounded-lg px-3 py-2 pr-9 outline-none focus:border-black bg-white"
+                className="w-full text-sm border border-border rounded-lg px-3 py-2 pr-9 outline-none focus:border-foreground bg-background"
                 autoFocus
               />
               <button
                 type="button"
                 onClick={() => setShowPwd((s) => !s)}
-                className="absolute right-2 top-1/2 -translate-y-1/2 text-black/40 hover:text-black"
+                className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
               >
                 {showPwd ? <EyeOff size={14} /> : <Eye size={14} />}
               </button>
             </div>
           </div>
           <div>
-            <label className="text-[10px] font-medium text-black/50 uppercase tracking-wide mb-1 block">Confirm</label>
+            <label className="text-[10px] font-medium text-muted-foreground uppercase tracking-wide mb-1 block">Confirm</label>
             <input
               type={showPwd ? 'text' : 'password'}
               value={confirm}
               onChange={(e) => setConfirm(e.target.value)}
               placeholder="Repeat the new password"
-              className="w-full text-sm border border-black/20 rounded-lg px-3 py-2 outline-none focus:border-black bg-white"
+              className="w-full text-sm border border-border rounded-lg px-3 py-2 outline-none focus:border-foreground bg-background"
             />
           </div>
 
@@ -138,13 +138,13 @@ export default function ChangePasswordPage() {
                 </p>
               </div>
               <div>
-                <label className="text-[10px] font-medium text-black/50 uppercase tracking-wide mb-1 block">Personal email (recovery)</label>
+                <label className="text-[10px] font-medium text-muted-foreground uppercase tracking-wide mb-1 block">Personal email (recovery)</label>
                 <input
                   type="email"
                   value={recoveryEmail}
                   onChange={(e) => setRecoveryEmail(e.target.value)}
                   placeholder="your-personal@gmail.com"
-                  className="w-full text-sm border border-black/20 rounded-lg px-3 py-2 outline-none focus:border-black bg-white"
+                  className="w-full text-sm border border-border rounded-lg px-3 py-2 outline-none focus:border-foreground bg-background"
                 />
               </div>
             </div>
@@ -154,7 +154,7 @@ export default function ChangePasswordPage() {
           <button
             onClick={() => submitMutation.mutate()}
             disabled={submitMutation.isPending}
-            className="w-full bg-black text-white text-sm py-2.5 rounded-lg hover:bg-black/80 disabled:opacity-50 transition-colors"
+            className="w-full bg-primary text-primary-foreground text-sm py-2.5 rounded-lg hover:bg-primary/80 disabled:opacity-50 transition-colors"
           >
             {submitMutation.isPending ? 'Updating…' : 'Update password'}
           </button>

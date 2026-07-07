@@ -104,23 +104,23 @@ export default function DomainsPage() {
   };
 
   const statusIcon = (d: Domain) => {
-    if (d.verified) return <CheckCircle size={14} className="text-white" />;
-    if (d.verificationStatus === 'failed') return <XCircle size={14} className="text-white/50" />;
-    return <Clock size={14} className="text-white/40" />;
+    if (d.verified) return <CheckCircle size={14} className="text-primary-foreground" />;
+    if (d.verificationStatus === 'failed') return <XCircle size={14} className="text-primary-foreground/50" />;
+    return <Clock size={14} className="text-primary-foreground/40" />;
   };
 
   return (
-    <div className="h-full overflow-y-auto bg-white">
+    <div className="h-full overflow-y-auto bg-background">
       {/* Header */}
-      <div className="sticky top-0 z-10 flex items-center justify-between px-6 py-4 border-b border-black/10 bg-white">
+      <div className="sticky top-0 z-10 flex items-center justify-between px-6 py-4 border-b border-border bg-background">
         <div>
-          <h1 className="text-base font-semibold text-black">Domains</h1>
-          <p className="text-xs text-black/40 mt-0.5">Connect custom domains to send and receive email</p>
+          <h1 className="text-base font-semibold text-foreground">Domains</h1>
+          <p className="text-xs text-muted-foreground mt-0.5">Connect custom domains to send and receive email</p>
         </div>
         {isSuperAdmin && (
           <button
             onClick={() => setShowAdd(true)}
-            className="flex items-center gap-2 bg-black text-white text-xs font-medium px-3 py-2 rounded-lg hover:bg-black/80 transition-colors"
+            className="flex items-center gap-2 bg-primary text-primary-foreground text-xs font-medium px-3 py-2 rounded-lg hover:bg-primary/80 transition-colors"
           >
             <Plus size={14} /> Add Domain
           </button>
@@ -129,25 +129,25 @@ export default function DomainsPage() {
 
       {/* Add domain form */}
       {showAdd && (
-        <div className="mx-6 mt-4 p-4 border border-black/10 rounded-xl bg-black/[0.02]">
-          <p className="text-xs font-medium text-black mb-3">Add a new domain</p>
+        <div className="mx-6 mt-4 p-4 border border-border rounded-xl bg-accent/40">
+          <p className="text-xs font-medium text-foreground mb-3">Add a new domain</p>
           <div className="flex gap-2">
             <input
               type="text"
               value={newDomain}
               onChange={e => setNewDomain(e.target.value)}
               placeholder="yourdomain.com"
-              className="flex-1 text-sm border border-black/20 rounded-lg px-3 py-2 outline-none focus:border-black bg-white"
+              className="flex-1 text-sm border border-border rounded-lg px-3 py-2 outline-none focus:border-foreground bg-background"
               onKeyDown={e => e.key === 'Enter' && newDomain.trim() && addMutation.mutate(newDomain.trim())}
             />
             <button
               onClick={() => addMutation.mutate(newDomain.trim())}
               disabled={!newDomain.trim() || addMutation.isPending}
-              className="bg-black text-white text-xs px-4 py-2 rounded-lg hover:bg-black/80 disabled:opacity-50 transition-colors"
+              className="bg-primary text-primary-foreground text-xs px-4 py-2 rounded-lg hover:bg-primary/80 disabled:opacity-50 transition-colors"
             >
               {addMutation.isPending ? 'Adding…' : 'Add'}
             </button>
-            <button onClick={() => setShowAdd(false)} className="text-xs text-black/40 px-2 hover:text-black">Cancel</button>
+            <button onClick={() => setShowAdd(false)} className="text-xs text-muted-foreground px-2 hover:text-foreground">Cancel</button>
           </div>
         </div>
       )}
@@ -156,57 +156,57 @@ export default function DomainsPage() {
       <div className="px-6 py-4 space-y-3 pb-24 lg:pb-6">
         {isLoading && (
           <div className="flex items-center justify-center py-16">
-            <div className="w-5 h-5 border-2 border-black/20 border-t-black rounded-full animate-spin" />
+            <div className="w-5 h-5 border-2 border-border border-t-foreground rounded-full animate-spin" />
           </div>
         )}
         {!isLoading && domains.length === 0 && (
           <div className="flex flex-col items-center justify-center py-20 text-center">
-            <Globe size={32} className="text-black/20 mb-3" />
-            <p className="text-sm font-medium text-black/40">No domains yet</p>
-            <p className="text-xs text-black/30 mt-1">Add a domain to start sending custom emails</p>
+            <Globe size={32} className="text-muted-foreground/60 mb-3" />
+            <p className="text-sm font-medium text-muted-foreground">No domains yet</p>
+            <p className="text-xs text-muted-foreground mt-1">Add a domain to start sending custom emails</p>
           </div>
         )}
         {domains.map(domain => (
-          <div key={domain.id} className="border border-black/10 rounded-xl overflow-hidden">
+          <div key={domain.id} className="border border-border rounded-xl overflow-hidden">
             {/* Row */}
             <div className="flex items-center gap-3 px-4 py-3">
               <button
                 type="button"
                 onClick={() => setExpanded(expanded === domain.id ? null : domain.id)}
-                className="flex-1 min-w-0 text-left active:bg-black/5 -mx-2 px-2 py-1 rounded-md transition-colors"
+                className="flex-1 min-w-0 text-left active:bg-muted -mx-2 px-2 py-1 rounded-md transition-colors"
               >
                 <div className="flex items-center gap-2">
                   {statusIcon(domain)}
-                  <span className="text-sm font-medium text-black truncate">{domain.name}</span>
+                  <span className="text-sm font-medium text-foreground truncate">{domain.name}</span>
                   <span className={`text-[10px] px-1.5 py-0.5 rounded font-medium ${
-                    domain.verified ? 'bg-black text-white' :
-                    domain.verificationStatus === 'failed' ? 'bg-black/10 text-black/50' :
-                    'bg-black/5 text-black/40'
+                    domain.verified ? 'bg-primary text-primary-foreground' :
+                    domain.verificationStatus === 'failed' ? 'bg-muted text-muted-foreground' :
+                    'bg-muted text-muted-foreground'
                   }`}>
                     {domain.verified ? 'Verified' : domain.verificationStatus === 'failed' ? 'Failed' : 'Pending'}
                   </span>
                 </div>
-                <p className="text-xs text-black/30 mt-0.5">Added {formatDate(domain.createdAt)}</p>
+                <p className="text-xs text-muted-foreground mt-0.5">Added {formatDate(domain.createdAt)}</p>
               </button>
               <div className="flex items-center gap-2">
                 {!domain.verified && (
                   <button
                     onClick={() => verifyMutation.mutate(domain.id)}
                     disabled={verifyMutation.isPending}
-                    className="text-xs text-black/60 border border-black/20 px-2.5 py-1 rounded-lg hover:border-black hover:text-black transition-colors"
+                    className="text-xs text-foreground/70 border border-border px-2.5 py-1 rounded-lg hover:border-foreground hover:text-foreground transition-colors"
                   >
                     Verify
                   </button>
                 )}
                 <button
                   onClick={() => setExpanded(expanded === domain.id ? null : domain.id)}
-                  className="p-1.5 text-black/40 hover:text-black rounded transition-colors"
+                  className="p-1.5 text-muted-foreground hover:text-foreground rounded transition-colors"
                 >
                   {expanded === domain.id ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
                 </button>
                 <button
                   onClick={() => deleteMutation.mutate(domain.id)}
-                  className="p-1.5 text-black/40 hover:text-black rounded transition-colors"
+                  className="p-1.5 text-muted-foreground hover:text-foreground rounded transition-colors"
                 >
                   <Trash2 size={14} />
                 </button>
@@ -215,7 +215,7 @@ export default function DomainsPage() {
 
             {/* DNS records */}
             {expanded === domain.id && (
-              <div className="border-t border-black/5 px-4 py-3 bg-black/[0.02] space-y-4">
+              <div className="border-t border-border/60 px-4 py-3 bg-accent/40 space-y-4">
                 <AdminsSection
                   domainId={domain.id}
                   currentUserId={user?.id}
@@ -269,12 +269,12 @@ function AdminsSection({
 
   return (
     <div>
-      <p className="text-xs font-medium text-black/60 mb-2 flex items-center gap-1.5">
+      <p className="text-xs font-medium text-foreground/70 mb-2 flex items-center gap-1.5">
         <Users size={12} /> Admins
       </p>
-      <div className="bg-white border border-black/10 rounded-lg divide-y divide-black/5">
+      <div className="bg-background border border-border rounded-lg divide-y divide-black/5">
         {isLoading && (
-          <div className="px-3 py-3 text-xs text-black/40">Loading…</div>
+          <div className="px-3 py-3 text-xs text-muted-foreground">Loading…</div>
         )}
 
         {owner && (
@@ -301,7 +301,7 @@ function AdminsSection({
         ))}
 
         {!isLoading && coAdmins.length === 0 && (
-          <div className="px-3 py-2.5 text-[11px] text-black/40">
+          <div className="px-3 py-2.5 text-[11px] text-muted-foreground">
             No co-admins yet. Add another WhyMail user to share full domain control.
           </div>
         )}
@@ -315,12 +315,12 @@ function AdminsSection({
             onChange={(e) => onEmailChange(e.target.value)}
             onKeyDown={(e) => e.key === 'Enter' && emailDraft.trim() && onAdd()}
             placeholder="user@example.com (must already have a WhyMail account)"
-            className="flex-1 text-xs border border-black/15 rounded-lg px-3 py-2 outline-none focus:border-black bg-white"
+            className="flex-1 text-xs border border-border rounded-lg px-3 py-2 outline-none focus:border-foreground bg-background"
           />
           <button
             onClick={onAdd}
             disabled={isAdding || !emailDraft.trim()}
-            className="text-xs bg-black text-white px-3 py-2 rounded-lg hover:bg-black/80 disabled:opacity-50 transition-colors"
+            className="text-xs bg-primary text-primary-foreground px-3 py-2 rounded-lg hover:bg-primary/80 disabled:opacity-50 transition-colors"
           >
             {isAdding ? 'Adding…' : 'Add admin'}
           </button>
@@ -343,19 +343,19 @@ function AdminRow({ admin, roleLabel, canRemove, onRemove, isRemoving }: AdminRo
   return (
     <div className="flex items-center justify-between px-3 py-2.5 gap-2">
       <div className="flex items-center gap-2 min-w-0">
-        <div className="w-7 h-7 rounded-full bg-black/5 flex items-center justify-center text-[10px] font-semibold text-black/60 shrink-0">
+        <div className="w-7 h-7 rounded-full bg-muted flex items-center justify-center text-[10px] font-semibold text-foreground/70 shrink-0">
           {(display[0] ?? '?').toUpperCase()}
         </div>
         <div className="min-w-0">
-          <p className="text-xs text-black/80 truncate">{display}</p>
-          <p className="text-[10px] text-black/40">{roleLabel}{admin.addedAt ? ` · added ${formatDate(admin.addedAt)}` : ''}</p>
+          <p className="text-xs text-foreground/85 truncate">{display}</p>
+          <p className="text-[10px] text-muted-foreground">{roleLabel}{admin.addedAt ? ` · added ${formatDate(admin.addedAt)}` : ''}</p>
         </div>
       </div>
       {canRemove && (
         <button
           onClick={onRemove}
           disabled={isRemoving}
-          className="p-1.5 text-black/40 hover:text-red-600 rounded transition-colors disabled:opacity-50"
+          className="p-1.5 text-muted-foreground hover:text-red-600 rounded transition-colors disabled:opacity-50"
           title="Remove admin"
         >
           <X size={14} />
@@ -427,11 +427,11 @@ function DomainSetupWizard({ domain, checks, copiedKey, onCopy, onVerify, isVeri
   return (
     <div className="space-y-3">
       <div className="flex items-center justify-between">
-        <p className="text-xs font-medium text-black/60">Setup checklist</p>
+        <p className="text-xs font-medium text-foreground/70">Setup checklist</p>
         <button
           onClick={onVerify}
           disabled={isVerifying}
-          className="text-xs bg-black text-white px-3 py-1.5 rounded-lg hover:bg-black/80 disabled:opacity-50 transition-colors flex items-center gap-1.5"
+          className="text-xs bg-primary text-primary-foreground px-3 py-1.5 rounded-lg hover:bg-primary/80 disabled:opacity-50 transition-colors flex items-center gap-1.5"
         >
           {isVerifying ? 'Checking…' : (
             <>
@@ -449,9 +449,9 @@ function DomainSetupWizard({ domain, checks, copiedKey, onCopy, onVerify, isVeri
         description={
           <>
             <b>Auto-configured</b>. Email Routing is enabled, MX records are auto-locked
-            to <code className="font-mono bg-black/[0.04] px-1.5 py-0.5 rounded">route1/2/3.mx.cloudflare.net</code>,
+            to <code className="font-mono bg-accent/60 px-1.5 py-0.5 rounded">route1/2/3.mx.cloudflare.net</code>,
             and the catch-all rule sends every inbound message to{' '}
-            <code className="font-mono bg-black/[0.04] px-1.5 py-0.5 rounded">whymail-email-worker</code>{' '}
+            <code className="font-mono bg-accent/60 px-1.5 py-0.5 rounded">whymail-email-worker</code>{' '}
             which posts it into your inbox.
           </>
         }
@@ -460,7 +460,7 @@ function DomainSetupWizard({ domain, checks, copiedKey, onCopy, onVerify, isVeri
           href={`https://dash.cloudflare.com/?to=/:account/${domain.name}/email/routing/routes`}
           target="_blank"
           rel="noreferrer"
-          className="inline-flex items-center gap-1.5 text-xs bg-black text-white px-3 py-1.5 rounded-lg hover:bg-black/80 transition-colors w-fit"
+          className="inline-flex items-center gap-1.5 text-xs bg-primary text-primary-foreground px-3 py-1.5 rounded-lg hover:bg-primary/80 transition-colors w-fit"
         >
           <ExternalLink size={11} />
           Open Cloudflare Email Routing
@@ -476,7 +476,7 @@ function DomainSetupWizard({ domain, checks, copiedKey, onCopy, onVerify, isVeri
           domain.verified ? (
             <>
               <b>Active</b>. Cloudflare Email Sending is onboarded for this domain. Outbound mail
-              goes through <code className="font-mono bg-black/[0.04] px-1.5 py-0.5 rounded">cf-bounce.{domain.name}</code>
+              goes through <code className="font-mono bg-accent/60 px-1.5 py-0.5 rounded">cf-bounce.{domain.name}</code>
               {' '}with CF-managed DKIM, SPF, and DMARC.
             </>
           ) : (
@@ -484,7 +484,7 @@ function DomainSetupWizard({ domain, checks, copiedKey, onCopy, onVerify, isVeri
               <b>Manual step required</b>. Cloudflare has no public API for Email Sending domain
               onboarding (yet). Open Cloudflare dashboard →{' '}
               <b>Compute → Email Service → Email Sending</b> → <b>Onboard Domain</b>, pick{' '}
-              <code className="font-mono bg-black/[0.04] px-1.5 py-0.5 rounded">{domain.name}</code>,
+              <code className="font-mono bg-accent/60 px-1.5 py-0.5 rounded">{domain.name}</code>,
               confirm. CF auto-creates the <code className="font-mono">cf-bounce</code> subdomain.
               Come back here and hit <b>Refresh</b> below.
             </>
@@ -496,7 +496,7 @@ function DomainSetupWizard({ domain, checks, copiedKey, onCopy, onVerify, isVeri
             href="https://dash.cloudflare.com/?to=/:account/email/email-sending"
             target="_blank"
             rel="noreferrer"
-            className="inline-flex items-center gap-1.5 text-xs bg-black/5 text-black/70 px-3 py-1.5 rounded-lg hover:bg-black/10 transition-colors w-fit"
+            className="inline-flex items-center gap-1.5 text-xs bg-muted text-foreground/75 px-3 py-1.5 rounded-lg hover:bg-muted transition-colors w-fit"
           >
             <ExternalLink size={11} />
             Open Cloudflare Email Sending
@@ -505,7 +505,7 @@ function DomainSetupWizard({ domain, checks, copiedKey, onCopy, onVerify, isVeri
             <button
               onClick={() => onRefreshOutbound?.(domain.id)}
               disabled={refreshingOutbound}
-              className="inline-flex items-center gap-1.5 text-xs bg-black text-white px-3 py-1.5 rounded-lg hover:bg-black/80 disabled:opacity-50 transition-colors w-fit"
+              className="inline-flex items-center gap-1.5 text-xs bg-primary text-primary-foreground px-3 py-1.5 rounded-lg hover:bg-primary/80 disabled:opacity-50 transition-colors w-fit"
             >
               {refreshingOutbound ? 'Checking…' : 'Refresh status'}
             </button>
@@ -561,7 +561,7 @@ type StepStatus = 'done' | 'pending' | 'idle';
 function StatusBadge({ status }: { status: StepStatus }) {
   if (status === 'done') return <CheckCircle size={14} className="text-emerald-600" />;
   if (status === 'pending') return <XCircle size={14} className="text-amber-500" />;
-  return <Clock size={14} className="text-black/30" />;
+  return <Clock size={14} className="text-muted-foreground" />;
 }
 
 interface WizardStepProps {
@@ -575,17 +575,17 @@ interface WizardStepProps {
 
 function WizardStep({ n, title, status, description, check, children }: WizardStepProps) {
   return (
-    <div className="bg-white border border-black/10 rounded-xl p-3.5">
+    <div className="bg-background border border-border rounded-xl p-3.5">
       <div className="flex items-start gap-3">
-        <div className="w-6 h-6 rounded-full bg-black/5 flex items-center justify-center text-[11px] font-semibold text-black/60 shrink-0">
+        <div className="w-6 h-6 rounded-full bg-muted flex items-center justify-center text-[11px] font-semibold text-foreground/70 shrink-0">
           {n}
         </div>
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 mb-1">
-            <p className="text-sm font-medium text-black">{title}</p>
+            <p className="text-sm font-medium text-foreground">{title}</p>
             <StatusBadge status={status} />
           </div>
-          <div className="text-[11px] text-black/60 leading-relaxed">{description}</div>
+          <div className="text-[11px] text-foreground/70 leading-relaxed">{description}</div>
           {check?.message && status === 'pending' && (
             <p className="text-[11px] text-amber-700 mt-1.5">⚠ {check.message}</p>
           )}
@@ -612,7 +612,7 @@ function RecordRow({ record, check, copyKey, copiedKey, onCopy }: RecordRowProps
     <div className={`rounded-lg border px-2.5 py-2 ${
       passed === true ? 'border-emerald-200 bg-emerald-50/30'
       : passed === false ? 'border-amber-200 bg-amber-50/30'
-      : 'border-black/10 bg-black/[0.02]'
+      : 'border-border bg-accent/40'
     }`}>
       {check && (
         <div className="text-[10px] uppercase tracking-wide mb-1.5">
@@ -622,38 +622,38 @@ function RecordRow({ record, check, copyKey, copiedKey, onCopy }: RecordRowProps
         </div>
       )}
       <div className="grid grid-cols-[64px_1fr_auto] gap-2 items-center text-xs font-mono">
-        <span className="text-black/40">Type</span>
-        <span className="text-black/80">{record.type}</span>
+        <span className="text-muted-foreground">Type</span>
+        <span className="text-foreground/85">{record.type}</span>
         <span />
 
-        <span className="text-black/40">Name</span>
-        <span className="text-black/80 break-all">{record.name}</span>
+        <span className="text-muted-foreground">Name</span>
+        <span className="text-foreground/85 break-all">{record.name}</span>
         <button
           onClick={() => onCopy(record.name, `${copyKey}-host`)}
-          className="text-black/30 hover:text-black p-1 rounded transition-colors"
+          className="text-muted-foreground hover:text-foreground p-1 rounded transition-colors"
           title="Copy Name"
         >
           {isHostCopied ? <CheckCircle size={11} /> : <Copy size={11} />}
         </button>
 
-        <span className="text-black/40">Content</span>
-        <span className="text-black/80 break-all">
-          {record.priority !== undefined && <span className="text-black/40 mr-1">{record.priority}</span>}
+        <span className="text-muted-foreground">Content</span>
+        <span className="text-foreground/85 break-all">
+          {record.priority !== undefined && <span className="text-muted-foreground mr-1">{record.priority}</span>}
           {record.value}
         </span>
         <button
           onClick={() => onCopy(record.value, `${copyKey}-value`)}
-          className="text-black/30 hover:text-black p-1 rounded transition-colors"
+          className="text-muted-foreground hover:text-foreground p-1 rounded transition-colors"
           title="Copy Content"
         >
           {isValueCopied ? <CheckCircle size={11} /> : <Copy size={11} />}
         </button>
 
-        <span className="text-black/40">TTL</span>
-        <span className="text-black/50">Auto</span>
+        <span className="text-muted-foreground">TTL</span>
+        <span className="text-muted-foreground">Auto</span>
         <span />
       </div>
-      {record.note && <p className="text-[10px] text-black/40 mt-1.5">{record.note}</p>}
+      {record.note && <p className="text-[10px] text-muted-foreground mt-1.5">{record.note}</p>}
     </div>
   );
 }
