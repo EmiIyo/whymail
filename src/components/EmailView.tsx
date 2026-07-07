@@ -174,11 +174,24 @@ export function EmailView({ email }: EmailViewProps) {
 
           <Separator className="mb-6" />
 
-          {/* Body */}
+          {/* Body — sandboxed iframe so the mail's own <style>/<body> rules
+              can't leak out and repaint the surrounding app (Supabase, GitHub
+              and many transactional mails set body{background:#000} which was
+              turning our dropdowns and lists dark). srcdoc keeps it same-origin
+              enough for links but sandbox blocks scripts. */}
           {email.bodyHtml ? (
-            <div
-              className="prose prose-sm max-w-none text-foreground"
-              dangerouslySetInnerHTML={{ __html: email.bodyHtml }}
+            <iframe
+              title="Email body"
+              sandbox="allow-popups allow-popups-to-escape-sandbox"
+              srcDoc={email.bodyHtml}
+              className="w-full min-h-[400px] border-0"
+              onLoad={(e) => {
+                const f = e.currentTarget;
+                try {
+                  const h = f.contentDocument?.documentElement?.scrollHeight;
+                  if (h) f.style.height = h + 'px';
+                } catch { /* cross-origin, keep default height */ }
+              }}
             />
           ) : (
             <pre className="whitespace-pre-wrap font-sans text-sm leading-relaxed text-foreground">
