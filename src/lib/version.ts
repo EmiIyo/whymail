@@ -17,7 +17,12 @@ export async function checkForUpdate(): Promise<void> {
   if (inFlight) return;
   inFlight = true;
   try {
-    const res = await fetch('/version.json', { cache: 'no-store' });
+    // Timestamp query-buster: even if a CDN/proxy in front of us ignores
+    // Cache-Control headers, the URL is different every call so the CDN can't
+    // return a cached response. Browser `cache: 'no-store'` handles the local
+    // HTTP cache; this handles the intermediary cache.
+    const url = `/version.json?_=${Date.now()}`;
+    const res = await fetch(url, { cache: 'no-store' });
     if (!res.ok) return;
     const data = (await res.json().catch(() => null)) as { version?: string } | null;
     const latest = data?.version;
@@ -26,14 +31,23 @@ export async function checkForUpdate(): Promise<void> {
     if (sessionStorage.getItem(RELOAD_FLAG) === latest) return;
     sessionStorage.setItem(RELOAD_FLAG, latest);
 
-    // Nudge the service worker to re-check too, then hard-reload.
+    // Nudge the service worker to re-check too, then hard-reload with a
+    // cache-busting query param. Plain location.reload() can still serve
+    // an index.html cached by an upstream proxy; forcing a distinct URL
+    // (?v=...) sidesteps that class of intermediaries.
     try {
       const reg = await navigator.serviceWorker?.getRegistration();
       await reg?.update();
     } catch {
       /* ignore */
     }
-    window.location.reload();
+    const bust = `_v=${encodeURIComponent(latest)}`;
+    const sep = window.location.search ? '&' : '?';
+    // Strip any old _v= before appending the fresh one so repeated updates
+    // don't chain "?_v=a&_v=b&_v=c" over time.
+    const cleanSearch = window.location.search.replace(/(?:^\?|&)_v=[^&]*/g, '').replace(/^&/, '?');
+    const target = window.location.pathname + (cleanSearch || '') + (cleanSearch ? '&' : sep) + bust + window.location.hash;
+    window.location.replace(target);
   } catch {
     // Offline or network error — try again on the next trigger.
   } finally {
