@@ -192,6 +192,7 @@
 
   body {
     @apply bg-background text-foreground font-sans min-h-screen;
+    color-scheme: light;
     font-feature-settings: "cv02", "cv03", "cv04", "cv11";
     /* Native mobile feel */
     -webkit-tap-highlight-color: transparent;
