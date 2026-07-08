@@ -188,9 +188,16 @@ export function EmailView({ email }: EmailViewProps) {
           {email.bodyHtml ? (
             <iframe
               title="Email body"
-              sandbox="allow-popups allow-popups-to-escape-sandbox"
+              // allow-same-origin: needed so we can read contentDocument to
+              //   auto-size the iframe to the mail's real height. Without it
+              //   the iframe stays stuck at its min-height and the user sees
+              //   a tiny scroll box.
+              // allow-popups + escape-sandbox: link clicks open in a new tab.
+              // (No allow-scripts on purpose — mails cannot run JS in here.)
+              sandbox="allow-same-origin allow-popups allow-popups-to-escape-sandbox"
               srcDoc={`<!doctype html><html><head><base target="_blank"><meta charset="utf-8"><style>html,body{margin:0;padding:0;color:#111;background:#fff;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Inter,sans-serif;font-size:14px;line-height:1.5;word-wrap:break-word;overflow-wrap:break-word}img,video{max-width:100%;height:auto}table{max-width:100%}pre{white-space:pre-wrap;word-break:break-word}</style></head><body>${email.bodyHtml}</body></html>`}
-              className="w-full min-h-[120px] border-0 block bg-white"
+              className="w-full border-0 block bg-white"
+              style={{ height: '120px' }}
               onLoad={(e) => {
                 const f = e.currentTarget;
                 const doc = f.contentDocument;
@@ -205,6 +212,8 @@ export function EmailView({ email }: EmailViewProps) {
                   } catch { /* ignore */ }
                 };
                 measure();
+                // Layout can settle a tick after onLoad (fonts, late CSS).
+                requestAnimationFrame(measure);
                 // Re-measure once images finish loading (they often add height).
                 doc.querySelectorAll('img').forEach((img) => {
                   const el = img as HTMLImageElement;

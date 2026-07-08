@@ -165,13 +165,13 @@ export function Layout({ children }: LayoutProps) {
                   <DropdownMenuItem
                     key={acc.id}
                     onClick={() => setActiveAccount(acc.id)}
-                    className="flex items-center gap-2.5 py-2 text-popover-foreground"
+                    className="flex items-center gap-2.5 py-2"
                   >
                     <Avatar className="w-6 h-6 shrink-0">
-                      <AvatarFallback className="text-xs bg-muted text-foreground">{getInitials(acc.name)}</AvatarFallback>
+                      <AvatarFallback className="text-xs">{getInitials(acc.name)}</AvatarFallback>
                     </Avatar>
                     <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium truncate text-popover-foreground">{acc.name}</p>
+                      <p className="text-sm font-medium truncate">{acc.name}</p>
                       <p className="text-xs text-muted-foreground font-mono truncate">{acc.email}</p>
                     </div>
                     {acc.id === activeAccountId && (
